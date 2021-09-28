@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 from typing import List, Dict, Any
 import os
-import utils.config
 
 def compute_velocity(track_df: pd.DataFrame) -> List[float]:
     """Compute velocities for the given track.
@@ -37,7 +36,7 @@ def compute_velocity(track_df: pd.DataFrame) -> List[float]:
     return vel
 
 
-def get_is_track_stationary(track_df: pd.DataFrame) -> bool:
+def get_is_track_stationary(track_df: pd.DataFrame, config) -> bool:
     """Check if the track is stationary.
 
     Args:
@@ -49,7 +48,7 @@ def get_is_track_stationary(track_df: pd.DataFrame) -> bool:
     vel = compute_velocity(track_df)
     sorted_vel = sorted(vel)
     threshold_vel = sorted_vel[int(len(vel) / 2)] #取中间时刻的速度
-    return True if threshold_vel < VELOCITY_THRESHOLD else False
+    return True if threshold_vel < config["VELOCITY_THRESHOLD"] else False
 
 
 def get_agent_feature_ls(agent_df, obs_len, norm_center):
@@ -70,7 +69,7 @@ def get_agent_feature_ls(agent_df, obs_len, norm_center):
     return [xys, agent_df['OBJECT_TYPE'].iloc[0], ts, agent_df['TRACK_ID'].iloc[0], gt_xys]
 
 
-def get_nearby_lane_feature_ls(am, agent_df, obs_len, city_name, lane_radius, norm_center, has_attr=False, mode='nearby', query_bbox=None):
+def get_nearby_lane_feature_ls(am, agent_df, config, city_name, norm_center, has_attr=False):
     '''
     compute lane features
     args:
@@ -83,7 +82,7 @@ def get_nearby_lane_feature_ls(am, agent_df, obs_len, city_name, lane_radius, no
 
     lane_feature_ls = []
     query_x, query_y = agent_df[['X', 'Y']].values[obs_len - 1]  # 和norm_center值相同
-    nearby_lane_ids = am.get_lane_ids_in_xy_bbox(query_x, query_y, city_name, lane_radius)
+    nearby_lane_ids = am.get_lane_ids_in_xy_bbox(query_x, query_y, city_name, config["LANE_RADIUS"])
 
     for lane_id in nearby_lane_ids:
         traffic_control = am.lane_has_traffic_control_measure(
@@ -94,8 +93,6 @@ def get_nearby_lane_feature_ls(am, agent_df, obs_len, city_name, lane_radius, no
         # normalize to last observed timestamp point of agent
         centerlane[:, :2] -= norm_center  # 坐标以last_obs为中心
 
-        """得到lane的左右车道线坐标，自定义方法"""
-        halluc_lane_1, halluc_lane_2 = get_halluc_lane(centerlane, city_name)
         """得到lane的左右车道线坐标  调用现成的方法-ning"""
         pts = am.get_lane_segment_polygon(lane_id, city_name)
         pts_len = pts.shape[0] // 2
@@ -118,41 +115,34 @@ def get_nearby_lane_feature_ls(am, agent_df, obs_len, city_name, lane_radius, no
     return lane_feature_ls
 
 
-def get_nearby_moving_obj_feature_ls(agent_df, traj_df, obs_len, seq_ts, norm_center):
+def get_nearby_moving_obj_feature_ls(agent_df, traj_df, config, seq_ts, norm_center):
     """
     args:
     returns: list of list, (doubled_track, object_type, timestamp, track_id)
     """
     obj_feature_ls = []
-    query_x, query_y = agent_df[['X', 'Y']].values[obs_len - 1]
+    query_x, query_y = agent_df[['X', 'Y']].values[config["OBS_LEN"] - 1]
     p0 = np.array([query_x, query_y])
     for track_id, remain_df in traj_df.groupby('TRACK_ID'):
         if remain_df['OBJECT_TYPE'].iloc[0] == 'AGENT':
             continue
         len_remain_df = len(remain_df)
-        if len(remain_df) < EXIST_THRESHOLD or get_is_track_stationary(remain_df):  # 如果是静态的或者是长度不够50，就跳过
+        # 如果是静态的或者是长度不够50，就跳过
+        if len(remain_df) < config["EXIST_THRESHOLD"] or get_is_track_stationary(remain_df, config):
             continue
 
         xys, ts = None, None
-        # if len(remain_df) < obs_len:
-        #     paded_nd = pad_track(remain_df, seq_ts, obs_len, RAW_DATA_FORMAT)
-        #     xys = np.array(paded_nd[:, 3:5], dtype=np.float64)
-        #     ts = np.array(paded_nd[:, 0], dtype=np.float64)  # FIXME: fix bug: not consider padding time_seq
-        # else:
         xys = remain_df[['X', 'Y']].values
         ts = remain_df["TIMESTAMP"].values
 
         p1 = xys[-1]
-        if np.linalg.norm(p0 - p1) > OBJ_RADIUS:  # 筛选obj的范围，超过30就不考虑
+        if np.linalg.norm(p0 - p1) > config["OBJ_RADIUS"]:  # 筛选obj的范围，超过30就不考虑
             continue
 
         xys -= norm_center  # normalize to last observed timestamp point of agent
         xys = np.hstack((xys[:-1], xys[1:]))  # 错位，得到vector
 
         ts = (ts[:-1] + ts[1:]) / 2
-        # if not xys.shape[0] == ts.shape[0]:
-        #     from pdb import set_trace;set_trace()
-
         obj_feature_ls.append(
             [xys, remain_df['OBJECT_TYPE'].iloc[0], ts, track_id])
     return obj_feature_ls
