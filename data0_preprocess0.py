@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from typing import List, Dict, Any
 import os
-from data import *
+from data0 import *
 from viz import *
 from tqdm import tqdm
 import re
