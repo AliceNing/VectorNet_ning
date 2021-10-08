@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from typing import List, Dict, Any
 import os
-from data0 import *
+from data import *
 from viz import *
 from tqdm import tqdm
 import re
@@ -31,7 +31,7 @@ config["LANE_RADIUS"] = 200 #30 [100, -100, 100, -100]
 config["OBJ_RADIUS"] = 30
 config["DATA_DIR"] = './data'
 config["OBS_LEN"] = 20
-config["INTERMEDIATE_DATA_DIR"] = './interm_data'
+config["Preprocess_DATA_DIR"] = './preprosessed_data'
 config["query_bbox"] = [-100, 100, -100, 100]
 
 
@@ -108,11 +108,11 @@ def compute_feature_for_one_seq(traj_df, am, config, viz = False, folder_name=""
                  'x', color='blue', markersize=4)
         plt.show()
 
-    return [agent_feature, obj_feature_ls, lane_feature_ls, norm_center]
+    return [agent_feature, obj_feature_ls, lane_feature_ls, norm_center, rot]
 
 
 def trans_gt_offset_format(gt):
-    """
+    """#变成每一步移动的距离
     >Our predicted trajectories are parameterized as per-stepcoordinate offsets,
     starting from the last observed location.We rotate the coordinate system
     based on the heading of the target vehicle at the last observed location.
@@ -124,24 +124,21 @@ def trans_gt_offset_format(gt):
     if gt.shape == (0, 2):
         return gt
 
-    offset_gt = np.vstack((gt[0], gt[1:] - gt[:-1]))
-    # import pdb
-    # pdb.set_trace()
-    assert (offset_gt.cumsum(axis=0) -
-            gt).sum() < 1e-6, f"{(offset_gt.cumsum(axis=0) - gt).sum()}"
+    offset_gt = np.vstack((gt[0], gt[1:] - gt[:-1])) #变成每一步移动的距离
+
+    assert (offset_gt.cumsum(axis=0) - gt).sum() < 1e-6, f"{(offset_gt.cumsum(axis=0) - gt).sum()}"
 
     return offset_gt
-
 
 def encoding_features(agent_feature, obj_feature_ls, lane_feature_ls, config):
     """
     args:
         agent_feature_ls:
-            list of (doubeld_track, object_type, timestamp, track_id, not_doubled_groudtruth_feature_trajectory)
+            (doubeld_track, object_type, timestamp, track_id, not_doubled_groudtruth_feature_trajectory)
         obj_feature_ls:
-            list of list of (doubled_track, object_type, timestamp, track_id)
+            (doubled_track, object_type, timestamp, track_id)
         lane_feature_ls:
-            list of list of lane a segment feature, formatted in [left_lane, right_lane, is_traffic_control, is_intersection, lane_id]
+            [left_lane, right_lane, is_traffic_control, is_intersection, lane_id]
     returns:
         pd.DataFrame of (
             polyline_features: vstack[
@@ -160,7 +157,7 @@ def encoding_features(agent_feature, obj_feature_ls, lane_feature_ls, config):
     gt = agent_feature[-1]  # ground_truth
     traj_nd, lane_nd = np.empty((0, 7)), np.empty((0, 7))  # ??
 
-    # encoding agent feature
+    '''agent feature'''
     pre_traj_len = traj_nd.shape[0]
     agent_len = agent_feature[0].shape[0]  # agent obs vector len
     agent_nd = np.hstack((agent_feature[0], np.ones(
@@ -173,7 +170,7 @@ def encoding_features(agent_feature, obj_feature_ls, lane_feature_ls, config):
     pre_traj_len = traj_nd.shape[0]
     polyline_id += 1
 
-    # encoding obj feature
+    '''obj feature'''
     for obj_feature in obj_feature_ls:
         # 传进来的数据长度是49，只留前19个
         obj_feature[0] = obj_feature[0][:19]
@@ -193,7 +190,7 @@ def encoding_features(agent_feature, obj_feature_ls, lane_feature_ls, config):
         pre_traj_len = traj_nd.shape[0]
         polyline_id += 1
 
-    # incodeing lane feature
+    '''lane feature'''
     pre_lane_len = lane_nd.shape[0]
     for lane_feature in lane_feature_ls:
         l_lane_len = lane_feature[0].shape[0]  # 车道左边缘线
@@ -220,7 +217,7 @@ def encoding_features(agent_feature, obj_feature_ls, lane_feature_ls, config):
         assert _tmp_len_1 == _tmp_len_2, f"left, right lane vector length contradict"
         # lane_nd = np.vstack((lane_nd, l_lane_nd, r_lane_nd))
 
-    # FIXME: handling `nan` in lane_nd
+    '''handling `nan` in lane_nd'''
     col_mean = np.nanmean(lane_nd, axis=0)
     if np.isnan(col_mean).any():
         # raise ValueError(
@@ -231,14 +228,16 @@ def encoding_features(agent_feature, obj_feature_ls, lane_feature_ls, config):
         inds = np.where(np.isnan(lane_nd))
         lane_nd[inds] = np.take(col_mean, inds[1])
 
-    """transform gt to offset_gt"""
-    offset_gt = trans_gt_offset_format(gt)
-    """faeture 改变顺序"""
-    # change lanes feature from (xs, ys, zs, xe, ye, ze, polyline_id) to (xs, ys, xe, ye, NULL, zs, ze, polyline_id)
+    # offset_gt = trans_gt_offset_format(gt)  #gt变成每一步移动的距离
+    offset_gt = gt  #gt使用真实没有任何处理的坐标
+
+    '''change lanes feature '''
+    # from (xs, ys, zs, xe, ye, ze, polyline_id) to (xs, ys, xe, ye, NULL, zs, ze, polyline_id)
     lane_nd = np.hstack([lane_nd, np.zeros((lane_nd.shape[0], 1), dtype=lane_nd.dtype)])  # timestap???
     lane_nd = lane_nd[:, [0, 1, 3, 4, 7, 2, 5, 6]]  # x1,y1,x2,y2,0,z1,z2,polyline_id
 
-    # change object features from (xs0, ys1, xe2, ye3, obejct_type4, timestamp5(avg_for_start_end?),polyline_id6)
+    '''change object features'''
+    # from (xs0, ys1, xe2, ye3, obejct_type4, timestamp5(avg_for_start_end?),polyline_id6)
     # to (xs, ys, xe, ye, timestamp, NULL, NULL, polyline_id),舍弃了object_type,null可视为padding？将维度都统一到8？
     traj_nd = np.hstack([traj_nd, np.zeros((traj_nd.shape[0], 2), dtype=traj_nd.dtype)])
     traj_nd = traj_nd[:, [0, 1, 2, 3, 5, 7, 8, 6]]
@@ -274,12 +273,13 @@ if __name__ == "__main__":
         print(f"folder: {folder}")
         afl = ArgoverseForecastingLoader(os.path.join(config["DATA_DIR"], folder))
         norm_center_dict = {}
+        rot_dict = {}
         for name in tqdm(afl.seq_list): #对文件夹里的每一个文件分别处理
             afl_ = afl.get(name) #每个csv文件数据
             path, name = os.path.split(name) #文件路径和文件名
             name, ext = os.path.splitext(name) #文件名和后缀名
 
-            agent_feature, obj_feature_ls, lane_feature_ls, norm_center = compute_feature_for_one_seq(
+            agent_feature, obj_feature_ls, lane_feature_ls, norm_center, rot = compute_feature_for_one_seq(
                 afl_.seq_df, am, config, viz=False, folder)
             #afl_.seq_df是按行保存的csv文件
 
@@ -287,11 +287,15 @@ if __name__ == "__main__":
             df = encoding_features(agent_feature, obj_feature_ls, lane_feature_ls, config)
 
             #每个sence保存一个pkl文件
-            save_features(df, name, os.path.join(config["INTERMEDIATE_DATA_DIR"], f"{folder}_intermediate"))
+            save_features(df, name, os.path.join(config["Preprocess_DATA_DIR"], f"{folder}_intermediate"))
 
             norm_center_dict[name] = norm_center
+            rot_dict[name] = rot
 
-        #保存norm_center文件
-        with open(os.path.join(config["INTERMEDIATE_DATA_DIR"], f"{folder}-norm_center_dict.pkl"), 'wb') as f:
+
+        #保存norm_center文件 rot文件
+        with open(os.path.join(config["Preprocess_DATA_DIR"], f"{folder}-norm_center_dict.pkl"), 'wb') as f:
             pickle.dump(norm_center_dict, f, pickle.HIGHEST_PROTOCOL)
             # print(pd.DataFrame(df['POLYLINE_FEATURES'].values[0]).describe())
+        with open(os.path.join(config["Preprocess_DATA_DIR"], f"{folder}-rot_dict.pkl"), 'wb') as f:
+            pickle.dump(rot_dict, f, pickle.HIGHEST_PROTOCOL)
