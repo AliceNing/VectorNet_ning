@@ -17,7 +17,7 @@ def show_doubled_lane(polygon):
     plt.plot(xs, ys, '--', color='grey')
 
 
-def show_traj(traj, config, config type_):
+def show_traj(traj, config, type_):
     """
     args: ndarray in shape of (n, 2)
     returns:

@@ -99,7 +99,9 @@ def get_nearby_lane_feature_ls(am, agent_df, config, city_name, norm_center, rot
 
         """得到lane的左右车道线坐标  调用现成的方法-ning"""
         pts = am.get_lane_segment_polygon(lane_id, city_name)
-        pts_len = pts.shape[0] // 2
+        pts_len = (pts.shape[0]-1) // 2
+        if pts_len != 10:
+            print(pts_len)
         lane_1tmp = pts[:pts_len]
         lane_2tmp = pts[pts_len:2 * pts_len]
         # halluc_lane_1tmp[:, :2] -= norm_center
@@ -108,11 +110,13 @@ def get_nearby_lane_feature_ls(am, agent_df, config, city_name, norm_center, rot
         lane_2tmp[:, :2] = np.matmul(rot, (lane_2tmp[:, :2] - norm_center).T).T
 
         # 变成vector形式9*6
-        lane_1tmp_1 = lane_1tmp[0:9]
+        lane_1tmp_1 = lane_1tmp[0:(pts_len-1)]
         lane_1tmp_2 = lane_1tmp[1:]
+        # print(lane_1tmp_1.shape)
+        # print(lane_1tmp_2.shape)
         lane_1 = np.hstack((lane_1tmp_1, lane_1tmp_2))
 
-        lane_2tmp_1 = lane_2tmp[0:9]
+        lane_2tmp_1 = lane_2tmp[0:(pts_len-1)]
         lane_2tmp_2 = lane_2tmp[1:]
         lane_2 = np.hstack((lane_2tmp_1, lane_2tmp_2))
 

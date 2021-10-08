@@ -27,7 +27,7 @@ config["EXIST_THRESHOLD"] = (50)
 # index of the sorted velocity to look at, to call it as stationary
 config["STATIONARY_THRESHOLD"] = (13)
 config["color_dict"] = {"AGENT": "#d33e4c", "OTHERS": "#d3e8ef", "AV": "#007672"}
-config["LANE_RADIUS"] = 200 #30 [100, -100, 100, -100]
+config["LANE_RADIUS"] = 30 #30 [100, -100, 100, -100]
 config["OBJ_RADIUS"] = 30
 config["DATA_DIR"] = './data'
 config["OBS_LEN"] = 20
@@ -35,7 +35,7 @@ config["Preprocess_DATA_DIR"] = './preprosessed_data'
 config["query_bbox"] = [-100, 100, -100, 100]
 
 
-def compute_feature_for_one_seq(traj_df, am, config, viz = False, folder_name="") -> List[List]:
+def compute_feature_for_one_seq(traj_df, am, config, viz = False, folder_name = "") -> List[List]:
     """
     return lane & track features
     returns:
@@ -86,7 +86,7 @@ def compute_feature_for_one_seq(traj_df, am, config, viz = False, folder_name=""
 
     obj_feature_ls = get_nearby_moving_obj_feature_ls(agent_df, traj_df, config, seq_ts, norm_center, rot)
 
-    agent_feature = get_agent_feature_ls(agent_df, config["OBS_LEN"], norm_center)
+    agent_feature = get_agent_feature_ls(agent_df, config["OBS_LEN"], norm_center, rot)
 
     # vis
     if viz:
@@ -275,12 +275,13 @@ if __name__ == "__main__":
         norm_center_dict = {}
         rot_dict = {}
         for name in tqdm(afl.seq_list): #对文件夹里的每一个文件分别处理
+            # print(name)
             afl_ = afl.get(name) #每个csv文件数据
             path, name = os.path.split(name) #文件路径和文件名
             name, ext = os.path.splitext(name) #文件名和后缀名
 
             agent_feature, obj_feature_ls, lane_feature_ls, norm_center, rot = compute_feature_for_one_seq(
-                afl_.seq_df, am, config, viz=False, folder)
+                afl_.seq_df, am, config, viz=False, folder_name = folder)
             #afl_.seq_df是按行保存的csv文件
 
             # 处理feature文件
