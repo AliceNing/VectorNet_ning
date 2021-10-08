@@ -51,16 +51,19 @@ def get_is_track_stationary(track_df: pd.DataFrame, config) -> bool:
     return True if threshold_vel < config["VELOCITY_THRESHOLD"] else False
 
 
-def get_agent_feature_ls(agent_df, obs_len, norm_center):
+def get_agent_feature_ls(agent_df, obs_len, norm_center, rot):
     """
     args:
     returns:
         list of (doubeld_track, object_type, timetamp, track_id, not_doubled_groudtruth_feature_trajectory)
+        return:list，其包含xys, agent_df['OBJECT_TYPE'].iloc[0], ts, agent_df['TRACK_ID'].iloc[0], gt_xys
+    其中xys是前20个时刻的vector（减去norm_center了），ts是vector两点的平均 时间戳，gt_xys是后30个时刻的位置（减去norm_center了）
     """
     xys, gt_xys = agent_df[["X", "Y"]].values[:obs_len], agent_df[[
         "X", "Y"]].values[obs_len:]
-    xys -= norm_center  # normalize to last observed timestamp point of agent
-    gt_xys -= norm_center  # normalize to last observed timestamp point of agent
+    # xys -= norm_center  # normalize to last observed timestamp point of agent
+    xys = np.matmul(rot, (xys - norm_center).T).T
+    # gt_xys -= norm_center  # normalize to last observed timestamp point of agent
     xys = np.hstack((xys[:-1], xys[1:]))
 
     ts = agent_df['TIMESTAMP'].values[:obs_len]
@@ -69,19 +72,19 @@ def get_agent_feature_ls(agent_df, obs_len, norm_center):
     return [xys, agent_df['OBJECT_TYPE'].iloc[0], ts, agent_df['TRACK_ID'].iloc[0], gt_xys]
 
 
-def get_nearby_lane_feature_ls(am, agent_df, config, city_name, norm_center, has_attr=False):
+def get_nearby_lane_feature_ls(am, agent_df, config, city_name, norm_center, rot, has_attr=False):
     '''
-    compute lane features
-    args:
-        norm_center: np.ndarray
-        mode: 'nearby' return nearby lanes within the radius; 'rect' return lanes within the query bbox
-        **kwargs: query_bbox= List[int, int, int, int]
-    returns:
-        list of list of lane a segment feature, formatted in [left_lane, right_lane, is_traffic_control, is_intersection, lane_id]
+    根据最后一个观察点得到上下文的Lane特征
+
+    返回值:lane特征列表
+    list长度是lane_num,每个里面包含一个长度为5的list:
+    格式：[left_lane, right_lane, is_traffic_control, is_intersection, lane_id]
+    # 其中左右车道线坐标是三维的，包括高度信息（前两维减去norm_center,并旋转）
+
     '''
 
     lane_feature_ls = []
-    query_x, query_y = agent_df[['X', 'Y']].values[obs_len - 1]  # 和norm_center值相同
+    query_x, query_y = agent_df[['X', 'Y']].values[config["OBS_LEN"] - 1]  # 和norm_center值相同
     nearby_lane_ids = am.get_lane_ids_in_xy_bbox(query_x, query_y, city_name, config["LANE_RADIUS"])
 
     for lane_id in nearby_lane_ids:
@@ -90,35 +93,42 @@ def get_nearby_lane_feature_ls(am, agent_df, config, city_name, norm_center, has
         is_intersection = am.lane_is_in_intersection(lane_id, city_name)
 
         centerlane = am.get_lane_segment_centerline(lane_id, city_name)  # 10,3维 包括高度
-        # normalize to last observed timestamp point of agent
-        centerlane[:, :2] -= norm_center  # 坐标以last_obs为中心
+        # normalize to last observed timestamp point of agent and rot
+        centerlane[:, :2] = np.matmul(rot, (centerlane[:, :2] - norm_center).T).T
+        # centerlane[:, :2] -= norm_center  # 坐标以last_obs为中心
 
         """得到lane的左右车道线坐标  调用现成的方法-ning"""
         pts = am.get_lane_segment_polygon(lane_id, city_name)
         pts_len = pts.shape[0] // 2
-        halluc_lane_1tmp = pts[:pts_len]
-        halluc_lane_2tmp = pts[pts_len:2 * pts_len]
-        halluc_lane_1tmp[:, :2] -= norm_center
-        halluc_lane_2tmp[:, :2] -= norm_center
-        # 变成vector形式9*6
-        halluc_lane_11tmp = halluc_lane_1tmp[0:9]
-        halluc_lane_12tmp = halluc_lane_1tmp[1:]
-        halluc_lane_11 = np.hstack((halluc_lane_11tmp, halluc_lane_12tmp))
+        lane_1tmp = pts[:pts_len]
+        lane_2tmp = pts[pts_len:2 * pts_len]
+        # halluc_lane_1tmp[:, :2] -= norm_center
+        # halluc_lane_2tmp[:, :2] -= norm_center
+        lane_1tmp[:, :2] = np.matmul(rot, (lane_1tmp[:, :2] - norm_center).T).T
+        lane_2tmp[:, :2] = np.matmul(rot, (lane_2tmp[:, :2] - norm_center).T).T
 
-        halluc_lane_21tmp = halluc_lane_2tmp[0:9]
-        halluc_lane_22tmp = halluc_lane_2tmp[1:]
-        halluc_lane_21 = np.hstack((halluc_lane_21tmp, halluc_lane_22tmp))
+        # 变成vector形式9*6
+        lane_1tmp_1 = lane_1tmp[0:9]
+        lane_1tmp_2 = lane_1tmp[1:]
+        lane_1 = np.hstack((lane_1tmp_1, lane_1tmp_2))
+
+        lane_2tmp_1 = lane_2tmp[0:9]
+        lane_2tmp_2 = lane_2tmp[1:]
+        lane_2 = np.hstack((lane_2tmp_1, lane_2tmp_2))
 
         lane_feature_ls.append(
-            [halluc_lane_11, halluc_lane_21, traffic_control, is_intersection, lane_id])
+            [lane_1, lane_2, traffic_control, is_intersection, lane_id])
 
     return lane_feature_ls
 
 
-def get_nearby_moving_obj_feature_ls(agent_df, traj_df, config, seq_ts, norm_center):
+def get_nearby_moving_obj_feature_ls(agent_df, traj_df, config, seq_ts, norm_center, rot):
     """
     args:
     returns: list of list, (doubled_track, object_type, timestamp, track_id)
+    return: xys, remain_df['OBJECT_TYPE'].iloc[0], ts, track_id
+    其中xys是vector（减去norm_center了）,obj类型，ts是vector两点的平均时间戳，track_id
+    xys和ts的长度都是49！！
     """
     obj_feature_ls = []
     query_x, query_y = agent_df[['X', 'Y']].values[config["OBS_LEN"] - 1]
@@ -139,10 +149,11 @@ def get_nearby_moving_obj_feature_ls(agent_df, traj_df, config, seq_ts, norm_cen
         if np.linalg.norm(p0 - p1) > config["OBJ_RADIUS"]:  # 筛选obj的范围，超过30就不考虑
             continue
 
-        xys -= norm_center  # normalize to last observed timestamp point of agent
+        # xys -= norm_center  # normalize to last observed timestamp point of agent
+        xys = np.matmul(rot, (xys - norm_center).T).T
         xys = np.hstack((xys[:-1], xys[1:]))  # 错位，得到vector
 
-        ts = (ts[:-1] + ts[1:]) / 2
+        ts = (ts[:-1] + ts[1:]) / 2  #时刻取中
         obj_feature_ls.append(
             [xys, remain_df['OBJECT_TYPE'].iloc[0], ts, track_id])
     return obj_feature_ls

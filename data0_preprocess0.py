@@ -27,7 +27,7 @@ config["EXIST_THRESHOLD"] = (50)
 # index of the sorted velocity to look at, to call it as stationary
 config["STATIONARY_THRESHOLD"] = (13)
 config["color_dict"] = {"AGENT": "#d33e4c", "OTHERS": "#d3e8ef", "AV": "#007672"}
-config["LANE_RADIUS"] = 5#30
+config["LANE_RADIUS"] = 200 #30 [100, -100, 100, -100]
 config["OBJ_RADIUS"] = 30
 config["DATA_DIR"] = './data'
 config["OBS_LEN"] = 20
@@ -47,22 +47,31 @@ def compute_feature_for_one_seq(traj_df, am, config, viz = False, folder_name=""
             list of list of lane a segment feature, formatted in [left_lane, right_lane, is_traffic_control, is_intersection, lane_id]
         norm_center np.ndarray: (2, )
     """
-    # normalize timestamps
+    # 时间戳归一化
     traj_df['TIMESTAMP'] -= np.min(traj_df['TIMESTAMP'].values)
     seq_ts = np.unique(traj_df['TIMESTAMP'].values)
-
     seq_len = seq_ts.shape[0]
     city_name = traj_df['CITY_NAME'].iloc[0]
+
     agent_df = None
-    agent_x_end, agent_y_end, start_x, start_y, query_x, query_y, norm_center = [None] * 7  # 起点，终点和中间20个时刻的观察点
-    # agent traj & its start/end point
+    end_x, end_y, start_x, start_y, query_x, query_y, norm_center = [None] * 7  # 起点，终点和中间20个时刻的观察点
+
+    # 得到agent的轨迹，旋转矩阵，起始点等信息
     for obj_type, remain_df in traj_df.groupby('OBJECT_TYPE'):
         if obj_type == 'AGENT':  # AGENT对象的
             agent_df = remain_df
             start_x, start_y = agent_df[['X', 'Y']].values[0]
-            agent_x_end, agent_y_end = agent_df[['X', 'Y']].values[-1]
-            query_x, query_y = agent_df[['X', 'Y']].values[obs_len - 1]
+            end_x, end_y = agent_df[['X', 'Y']].values[-1]
+            query_x, query_y = agent_df[['X', 'Y']].values[config["OBS_LEN"] - 1]
+            pre_x, pre_y = agent_df[['X', 'Y']].values[config["OBS_LEN"] - 2]
             norm_center = np.array([query_x, query_y])
+            pre_center = np.array([pre_x, pre_y])
+            # 计算旋转角和旋转矩阵
+            pre = pre_center - norm_center
+            theta = np.pi - np.arctan2(pre[1], pre[0])
+            rot = np.asarray([
+                [np.cos(theta), -np.sin(theta)],
+                [np.sin(theta), np.cos(theta)]], np.float32)
             break
         else:
             raise ValueError(f"cannot find 'agent' object type")
@@ -73,25 +82,10 @@ def compute_feature_for_one_seq(traj_df, am, config, viz = False, folder_name=""
 
         assert (np.unique(traj_df["TIMESTAMP"].values).shape[0] == obs_len), "Obs len mismatch"
 
-    """search nearby lane from the last observed point of agent
-    #lane_radius=30 norm_center是last_obs的坐标 query_bbox=100*4
-    #返回值:list长度是lane_num,每个里面包含一个长度为5的list:(lane_feature_ls =[halluc_lane_1, halluc_lane_2, traffic_control, is_intersection, lane_id],)
-    # 其中左右车道线坐标是三维的，包括高度信息（前两维减去norm_center了）
-    # FIXME: nearby or rect?
-    """
-    lane_feature_ls = get_nearby_lane_feature_ls(am, agent_df, config, city_name, norm_center)
+    lane_feature_ls = get_nearby_lane_feature_ls(am, agent_df, config, city_name, norm_center, rot)
 
-    """search nearby moving objects from the last observed point of agent
-    return: xys, remain_df['OBJECT_TYPE'].iloc[0], ts, track_id
-    其中xys是vector（减去norm_center了）,obj类型，ts是vector两点的平均时间戳，track_id
-    xys和ts的长度都是49！！
-    """
-    obj_feature_ls = get_nearby_moving_obj_feature_ls(agent_df, traj_df, config, seq_ts, norm_center)
+    obj_feature_ls = get_nearby_moving_obj_feature_ls(agent_df, traj_df, config, seq_ts, norm_center, rot)
 
-    """get agent features
-    return:list，其包含xys, agent_df['OBJECT_TYPE'].iloc[0], ts, agent_df['TRACK_ID'].iloc[0], gt_xys
-    其中xys是前20个时刻的vector（减去norm_center了），ts是vector两点的平均 时间戳，gt_xys是后30个时刻的位置（减去norm_center了）
-    """
     agent_feature = get_agent_feature_ls(agent_df, config["OBS_LEN"], norm_center)
 
     # vis
@@ -107,7 +101,7 @@ def compute_feature_for_one_seq(traj_df, am, config, viz = False, folder_name=""
         show_traj(np.vstack(
             (agent_feature[0][:, :2], agent_feature[0][-1, 2:])), agent_feature[1])
 
-        plt.plot(agent_x_end - query_x, agent_y_end - query_y, 'o',
+        plt.plot(end_x - query_x, end_y - query_y, 'o',
                  color=config["color_dict"]['AGENT'], markersize=7)
         plt.plot(0, 0, 'x', color='blue', markersize=4)
         plt.plot(start_x - query_x, start_y - query_y,
