@@ -1,19 +1,20 @@
 from argoverse.data_loading.argoverse_forecasting_loader import ArgoverseForecastingLoader
 from argoverse.map_representation.map_api import ArgoverseMap
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from typing import List, Dict, Any
 import os
 from tqdm import tqdm
 import re
+import time
 import sys
 import torch
-from torch.utils.data import dataloader
+from torch.utils.data import DataLoader
 from torch.multiprocessing import reductions
 from multiprocessing.reduction import ForkingPickler
 from data import ArgoDataset as Dataset, from_numpy, ref_copy, collate_fn
 import pickle
+root_path = os.path.dirname(os.path.abspath(__file__))
 
 config = dict()
 # Number of timesteps the track should exist to be considered in social context
@@ -30,8 +31,16 @@ config["workers"] = 0
 config["train_dir"] = "./data/train"   #os.path.join(root_path, "data/train")
 config["val_dir"] = "./data/val"       #os.path.join(root_path, "./data/val")
 config["test_dir"] = "./data/test"     #os.path.join(root_path, "./data/test")
+# Preprocessed Dataset
+config["preprocess"] = True # whether use preprocess or not
+config["preprocess_train"] = os.path.join(
+    root_path, "dataset","preprocess", "train_crs_dist6_angle90.p"
+)
+config["preprocess_val"] = os.path.join(
+    root_path,"dataset", "preprocess", "val_crs_dist6_angle90.p"
+)
+config['preprocess_test'] = os.path.join(root_path, "dataset", 'preprocess', 'test_test.p')
 
-# root_path = os.path.dirname(os.path.abspath(__file__))
 # sys.path.insert(0, root_path)
 
 
@@ -187,8 +196,8 @@ def to_numpy(data):
 
 if __name__ == "__main__":
     config["preprocess"] = False  # we use raw data to generate preprocess data
-    config["val_workers"] = 32
-    config["workers"] = 32
+    config["val_workers"] = 1#32
+    config["workers"] = 0 #32
     config['cross_dist'] = 6
     config['cross_angle'] = 0.5 * np.pi
 
