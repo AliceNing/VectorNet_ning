@@ -77,9 +77,9 @@ class ArgoDataset(Dataset):
         ROT:
         NORM_CENTER:
         '''
-        data_tmp = self.read_agt_obj_data(idx)
-        data_tmp = self.get_obj_feats(data_tmp)
-        data = self.read_lane_data(data_tmp)
+        data = self.read_agt_obj_data(idx)
+        data = self.get_obj_feats(data)
+        data = self.read_lane_data(data)
         return data
     
     def __len__(self):
@@ -226,8 +226,7 @@ class ArgoDataset(Dataset):
         id = data['item_num']
         x_min, x_max, y_min, y_max = self.config['pred_range']
         radius = max(abs(x_min), abs(x_max)) + max(abs(y_min), abs(y_max))
-        lane_ids = self.am.get_lane_ids_in_xy_bbox(data['norm_center'][0], data['norm_center'][1], data['city'],
-                                                   radius)  # Orig就是AGENT的第20个时刻位置
+        lane_ids = self.am.get_lane_ids_in_xy_bbox(data['norm_center'][0], data['norm_center'][1], data['city'],radius)
         for lane_id in lane_ids:
             traffic_control = am.lane_has_traffic_control_measure(
                 lane_id, data['city'])
@@ -249,14 +248,20 @@ class ArgoDataset(Dataset):
             poly_feat = np.zeros((9, 9), np.float32)
             poly_feat[:, 0:4] = np.hstack((lane_1[0:(pts_len - 1)], lane_1[1:]))  # xs,ys,xe,ye
             poly_feat[:, 4] = 2  # type: agent 0, obj 1, lane 2
-            poly_feat[:, 5] = traffic_control  # att1 traffic_control
+            if traffic_control:
+                poly_feat[:, 5] = 1  # att1 traffic_control
+            else:
+                poly_feat[:, 5] = 0
             if lane.turn_direction == 'LEFT':  # att2 direction
                 poly_feat[:, 6] = 1
             elif lane.turn_direction == 'RIGHT':
                 poly_feat[:, 6] = 2
             else:
                 poly_feat[:, 6] = 0
-            poly_feat[:, 7] = is_intersection  # att3 intersection
+            if is_intersection:
+                poly_feat[:, 7] = 1  # att3 intersection
+            else:
+                poly_feat[:, 7] = 0
             poly_feat[:, 8] = id  # id
 
             data['poly_feats'].append(poly_feat)
@@ -266,22 +271,27 @@ class ArgoDataset(Dataset):
             poly_feat1 = np.zeros((9, 9), np.float32)
             poly_feat1[:, 0:4] = np.hstack((lane_2[0:(pts_len - 1)], lane_2[1:]))  # xs,ys,xe,ye
             poly_feat1[:, 4] = 2  # type: agent 0, obj 1, lane 2
-            poly_feat1[:, 5] = traffic_control  # att1 traffic_control
+            if traffic_control:
+                poly_feat1[:, 5] = 1  # att1 traffic_control
+            else:
+                poly_feat1[:, 5] = 0
             if lane.turn_direction == 'LEFT':  # att2 direction
                 poly_feat1[:, 6] = 1
             elif lane.turn_direction == 'RIGHT':
                 poly_feat1[:, 6] = 2
             else:
                 poly_feat1[:, 6] = 0
-            poly_feat1[:, 7] = is_intersection  # att3 intersection
+            if is_intersection:
+                poly_feat1[:, 7] = 1  # att3 intersection
+            else:
+                poly_feat1[:, 7] = 0
             poly_feat1[:, 8] = id  # id
 
             data['poly_feats'].append(poly_feat1)
             id += 1
 
-            data['item_num'] = id
-            data['poly_feats'] = np.asarray(data['poly_feats'], np.float32)
-
+        data['item_num'] = id
+        data['poly_feats'] = np.asarray(data['poly_feats'], np.float32)
         return data
 
 
