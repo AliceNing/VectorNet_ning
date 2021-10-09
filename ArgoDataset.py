@@ -13,17 +13,17 @@ from skimage.transform import rotate
 
 
 class ArgoDataset(Dataset):
-    def __init__(self, split, config, train=True):
+    def __init__(self, dir, config, train=True):
         self.config = config
         self.train = train
 
         if 'preprocess' in config and config['preprocess']:#加载预处理好的数据
             if train:
-                self.split = np.load(self.config['preprocess_train'], allow_pickle=True)
+                self.load_file = np.load(self.config['preprocess_train'], allow_pickle=True)
             else:
-                self.split = np.load(self.config['preprocess_val'], allow_pickle=True)
+                self.load_file = np.load(self.config['preprocess_val'], allow_pickle=True)
         else:#第一次数据预处理
-            self.avl = ArgoverseForecastingLoader(split)
+            self.avl = ArgoverseForecastingLoader(dir)
             self.avl.seq_list = sorted(self.avl.seq_list)
             self.am = ArgoverseMap()
             
@@ -32,7 +32,7 @@ class ArgoDataset(Dataset):
         '''lanegcn'''
         #加载处理好的数据
         if 'preprocess' in self.config and self.config['preprocess']:
-            data = self.split[idx]
+            data = self.load_file[idx]
 
             if self.train and self.config['rot_aug']:
                 new_data = dict()
@@ -78,13 +78,14 @@ class ArgoDataset(Dataset):
         NORM_CENTER:
         '''
         data = self.read_agt_obj_data(idx)
+        data['idx'] = idx
         data = self.get_obj_feats(data)
         data = self.read_lane_data(data)
         return data
     
     def __len__(self):
         if 'preprocess' in self.config and self.config['preprocess']:
-            return len(self.split)
+            return len(self.load_file)
         else:
             return len(self.avl)
 
@@ -294,5 +295,33 @@ class ArgoDataset(Dataset):
         data['poly_feats'] = np.asarray(data['poly_feats'], np.float32)
         return data
 
+def collate_fn(batch):
+    batch = from_numpy(batch)
+    return_batch = dict()
+    # Batching by use a list for non-fixed size
+    for key in batch[0].keys():
+        return_batch[key] = [x[key] for x in batch]
+    return return_batch
 
+def from_numpy(data):
+    """Recursively transform numpy.ndarray to torch.Tensor.
+    """
+    if isinstance(data, dict):
+        for key in data.keys():
+            data[key] = from_numpy(data[key])
+    if isinstance(data, list) or isinstance(data, tuple):
+        data = [from_numpy(x) for x in data]
+    if isinstance(data, np.ndarray):
+        """Pytorch now has bool type."""
+        data = torch.from_numpy(data)
+    return data
 
+def ref_copy(data):
+    if isinstance(data, list):
+        return [ref_copy(x) for x in data]
+    if isinstance(data, dict):
+        d = dict()
+        for key in data:
+            d[key] = ref_copy(data[key])
+        return d
+    return data

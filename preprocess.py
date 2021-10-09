@@ -12,7 +12,7 @@ import torch
 from torch.utils.data import dataloader
 from torch.multiprocessing import reductions
 from multiprocessing.reduction import ForkingPickler
-import ArgoDataset
+from data import ArgoDataset as Dataset, from_numpy, ref_copy, collate_fn
 import pickle
 
 config = dict()
@@ -25,36 +25,19 @@ config["LANE_RADIUS"] = 30 #30 [100, -100, 100, -100]
 config["DATA_DIR"] = './data'
 config["OBS_LEN"] = 20
 config["query_bbox"] = [-100, 100, -100, 100]
+config["batch_size"] = 2
+config["workers"] = 0
+config["train_dir"] = "./data/train"   #os.path.join(root_path, "data/train")
+config["val_dir"] = "./data/val"       #os.path.join(root_path, "./data/val")
+config["test_dir"] = "./data/test"     #os.path.join(root_path, "./data/test")
 
-root_path = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, root_path)
-
-
-def main():
-    # Import all settings for experiment.
-    args = parser.parse_args()
-    model = import_module(args.model)
-    print(args.model)
-    config, *_ = model.get_model()
-
-    config["preprocess"] = False  # we use raw data to generate preprocess data
-    config["val_workers"] = 32
-    config["workers"] = 32
-    config['cross_dist'] = 6
-    config['cross_angle'] = 0.5 * np.pi
-
-    os.makedirs(os.path.dirname(config['preprocess_train']), exist_ok=True)
-
-
-
-    # val(config)
-    # test(config)
-    train(config)
+# root_path = os.path.dirname(os.path.abspath(__file__))
+# sys.path.insert(0, root_path)
 
 
 def train(config):
     # Data loader for training set
-    dataset = Dataset(config["train_split"], config, train=True)
+    dataset = Dataset(config["train_dir"], config, train=True)
     train_loader = DataLoader(
         dataset,
         batch_size=config["batch_size"],
@@ -65,51 +48,43 @@ def train(config):
         drop_last=False,
     )
 
-    stores = [None for x in range(2016)]#205942   little dataset:  63*32
+    stores = [None for x in range(2016)]  #205942
     t = time.time()
     for i, data in enumerate(tqdm(train_loader)): #batch_num 0-6435
         # little dataset
-        if i > 62:
-            break
+        # if i > 62:
+        #     break
 
         data = dict(data)
         for j in range(len(data["idx"])):#batch 0-31
             store = dict()
             for key in [
-                "idx",
-                "city",
-                "feats",
-                "ctrs",
-                "orig",
-                "theta",
+                "norm_center",
                 "rot",
+                "item_num",
+                "poly_feats",
                 "gt_preds",
                 "has_preds",
-                "graph",
+                "city",
+                "trajs",
+                "timestamp",
+                "step",
+                "theta",
+                "idx",
             ]:
                 store[key] = to_numpy(data[key][j])
-                if key in ["graph"]:
-                    store[key] = to_int16(store[key])
 
             stores[store["idx"]] = store
 
-        if (i + 1) % 100 == 0:
+        if (i + 1) % 100 == 0:  #print time
             print(i, time.time() - t)
             t = time.time()
 
-
-    dataset = PreprocessDataset(stores, config, train=True)
-    data_loader = DataLoader(
-        dataset,
-        batch_size=config['batch_size'],
-        num_workers=config['workers'],
-        shuffle=False,
-        collate_fn=from_numpy,
-        pin_memory=True,
-        drop_last=False)
-
     modify(config, data_loader, config["preprocess_train"])
-
+    # write preprocessed  data
+    f = open(os.path.join(root_path, 'preprocess', config["preprocess_train"]), 'wb')
+    pickle.dump(stores, f, protocol=pickle.HIGHEST_PROTOCOL)
+    f.close()
 
 def val(config):
     # Data loader for validation set
@@ -153,18 +128,8 @@ def val(config):
             print(i, time.time() - t)
             t = time.time()
 
-    dataset = PreprocessDataset(stores, config, train=False)
-    data_loader = DataLoader(
-        dataset,
-        batch_size=config['batch_size'],
-        num_workers=config['workers'],
-        shuffle=False,
-        collate_fn=from_numpy,
-        pin_memory=True,
-        drop_last=False)
 
     modify(config, data_loader,config["preprocess_val"])
-
 
 def test(config):
     dataset = Dataset(config["test_split"], config, train=False)
@@ -205,18 +170,8 @@ def test(config):
             print(i, time.time() - t)
             t = time.time()
 
-    dataset = PreprocessDataset(stores, config, train=False)
-    data_loader = DataLoader(
-        dataset,
-        batch_size=config['batch_size'],
-        num_workers=config['workers'],
-        shuffle=False,
-        collate_fn=from_numpy,
-        pin_memory=True,
-        drop_last=False)
 
     modify(config, data_loader,config["preprocess_test"])
-
 
 def to_numpy(data):
     """Recursively transform torch.Tensor to numpy.ndarray.
@@ -230,78 +185,15 @@ def to_numpy(data):
         data = data.numpy()
     return data
 
+if __name__ == "__main__":
+    config["preprocess"] = False  # we use raw data to generate preprocess data
+    config["val_workers"] = 32
+    config["workers"] = 32
+    config['cross_dist'] = 6
+    config['cross_angle'] = 0.5 * np.pi
 
-def to_int16(data):
-    if isinstance(data, dict):
-        for key in data.keys():
-            data[key] = to_int16(data[key])
-    if isinstance(data, list) or isinstance(data, tuple):
-        data = [to_int16(x) for x in data]
-    if isinstance(data, np.ndarray) and data.dtype == np.int64:
-        data = data.astype(np.int16)
-    return data
+    os.makedirs(os.path.dirname(config['preprocess_train']), exist_ok=True)
 
-
-def modify(config, data_loader, save):
-    t = time.time()
-    store = data_loader.dataset.split
-    for i, data in enumerate(data_loader):
-        data = [dict(x) for x in data]
-
-        out = []
-        for j in range(len(data)):
-            # preprocess(data[j], config['cross_dist'])
-            out.append(preprocess(to_long(gpu(data[j])), config['cross_dist']))  #'cross_dist': 6
-
-        for j, graph in enumerate(out):
-            idx = graph['idx']
-            store[idx]['graph']['left'] = graph['left']
-            store[idx]['graph']['right'] = graph['right']
-
-        if (i + 1) % 100 == 0:
-            print((i + 1) * config['batch_size'], time.time() - t)
-            t = time.time()
-
-    # write preprocessed  data  !!!
-    f = open(os.path.join(root_path, 'preprocess', save), 'wb')
-    pickle.dump(store, f, protocol=pickle.HIGHEST_PROTOCOL)
-    f.close()
-
-class PreprocessDataset():
-    def __init__(self, split, config, train=True):
-        self.split = split
-        self.config = config
-        self.train = train
-
-    def __getitem__(self, idx):
-        from data import from_numpy, ref_copy
-        data = self.split[idx]
-        graph = dict()
-        for key in ['lane_idcs', 'ctrs', 'pre_pairs', 'suc_pairs', 'left_pairs', 'right_pairs', 'feats']:
-            # graph[key] = ref_copy(data['graph'][key])
-            # Nonetype data
-            try:
-                graph[key] = ref_copy(data['graph'][key])
-            except:
-                continue
-        graph['idx'] = idx
-        return graph
-
-    def __len__(self):
-        return len(self.split)
-
-def to_long(data):
-    if isinstance(data, dict):
-        for key in data.keys():
-            data[key] = to_long(data[key])
-    if isinstance(data, list) or isinstance(data, tuple):
-        data = [to_long(x) for x in data]
-    if torch.is_tensor(data) and data.dtype == torch.int16:
-        data = data.long()
-    return data
-
-def worker_init_fn(pid):
-    np_seed = hvd.rank() * 1024 + int(pid)
-    np.random.seed(np_seed)
-    random_seed = np.random.randint(2 ** 32 - 1)
-    random.seed(random_seed)
+    # val(config)
+    # test(config)
+    train(config)
