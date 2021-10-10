@@ -309,6 +309,10 @@ class ArgoDataset(Dataset):
         data['poly_feats'] = np.asarray(data['poly_feats'], np.float32)
         return data
 
+    def filter_data(self, data):
+
+        return data
+
 def collate_fn(batch):
     batch = from_numpy(batch)
     return_batch = dict()
