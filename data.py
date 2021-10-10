@@ -80,6 +80,7 @@ class ArgoDataset(Dataset):
         data['idx'] = idx
         data = self.get_obj_feats(data)
         data = self.read_lane_data(data)
+        data = self.filter_data(data) #筛选特征
         return data
     
     def __len__(self):
