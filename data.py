@@ -306,12 +306,24 @@ class ArgoDataset(Dataset):
             id += 1
 
         data['item_num'] = id
-        data['poly_feats'] = np.asarray(data['poly_feats'], np.float32)
+        # data['poly_feats'] = np.asarray(data['poly_feats'], np.float32)
         return data
 
     def filter_data(self, data):
+        '''new_data:
+        item_num:  poly_line 数量
+        polyline_list:  所有的折线的向量特征  vector，注意：AGENT总为第一个
+        gt_preds：  per-step  ，相对最后观测点的位移  (future)
+        rot： 旋转矩阵
+        '''
+        new_data = dict()
+        new_data['item_num'] = data['item_num']
+        new_data['polyline_list'] = data['poly_feats']
+        new_data['rot'] = data['rot']
+        new_data['gt_preds'] = data['gt_preds']
+        new_data['has_preds'] = data['has_preds']
 
-        return data
+        return new_data
 
 def collate_fn(batch):
     batch = from_numpy(batch)
