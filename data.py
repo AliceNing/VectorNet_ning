@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from torch.utils.data import Dataset
@@ -98,13 +97,17 @@ class ArgoDataset(Dataset):
         traj_df['TIMESTAMP'] -= np.min(traj_df['TIMESTAMP'].values)
         traj_timestap = np.sort(np.unique(traj_df['TIMESTAMP'].values))
         traj_len = traj_timestap.shape[0]
-        steps = [mapping[x] for x in df['TIMESTAMP'].values]
+        mapping = dict()
+        for i, ts in enumerate(traj_timestap):
+            mapping[ts] = i
+        steps = [mapping[x] for x in traj_df['TIMESTAMP'].values]
         steps = np.asarray(steps, np.int64)
 
         'agent traj'
         all_trajs = np.concatenate((
             traj_df.X.to_numpy().reshape(-1, 1),
             traj_df.Y.to_numpy().reshape(-1, 1)), 1)
+        all_ts = traj_df.TIMESTAMP.to_numpy()
 
         all_objs = traj_df.groupby(['TRACK_ID', 'OBJECT_TYPE']).groups
         # 统计不同的object和其唯一ID（Keys，0:id,1:type），索引（value）
@@ -115,22 +118,38 @@ class ArgoDataset(Dataset):
 
         # 拿到所有的AGENT
         agt_traj = all_trajs[idcs]
-        agt_timestamp = traj_timestamp[idcs]
+        agt_timestamp = all_ts[idcs]
         agt_step = steps[idcs]
+
+        # 重新按时间排序
+        agt_idcs = agt_step.argsort()
+        agt_step = agt_step[agt_idcs]
+        agt_traj = agt_traj[agt_idcs]
+        agt_timestamp = agt_timestamp[agt_idcs]
 
         'agent 的上下文ctx_obj traj'
         del keys[agt_idx]
-        ctx_trajs, ctx_timestamp = [], []
+        ctx_trajs, ctx_timestamps, ctx_steps = [], [], []
         for key in keys:  # keys[('id',type)...]
-            idcs = objs[key]
-            ctx_trajs.append(trajs[idcs])
-            ctx_timestamp.append(traj_timestamp[idcs])
+            idcs = all_objs[key]
+            ctx_traj = all_trajs[idcs]
+            ctx_timestamp = all_ts[idcs]
             ctx_step = steps[idcs]
+            # 重新按时间排序
+            ctx_idcs = ctx_step.argsort()
+            ctx_step = ctx_step[ctx_idcs]
+            ctx_traj = ctx_traj[ctx_idcs]
+            ctx_timestamp = ctx_timestamp[ctx_idcs]
+
+            ctx_trajs.append(ctx_traj)
+            ctx_timestamps.append(ctx_timestamp)
+            ctx_steps.append(ctx_step)
+
 
         '旋转矩阵'
-        norm_center = data['trajs'][0][19].copy().astype(np.float32)
+        norm_center = agt_traj[19].copy().astype(np.float32)
         # AGENT的第20个时刻位置做为norm_center
-        pre = data['trajs'][0][18] - norm_center
+        pre = agt_traj[18] - norm_center
         theta = np.pi - np.arctan2(pre[1], pre[0])
         rot = np.asarray([
             [np.cos(theta), -np.sin(theta)],
@@ -140,8 +159,8 @@ class ArgoDataset(Dataset):
         data_tmp['city'] = city
         # AGENT对象放在第一个，其余是其上下文
         data_tmp['trajs'] = [agt_traj] + ctx_trajs  # obj_num, step_num, 2
-        data_tmp['timestamp'] = [agt_timestamp] + ctx_timestamp
-        data_tmp['step'] = [agt_step] + ctx_step
+        data_tmp['timestamp'] = [agt_timestamp] + ctx_timestamps
+        data_tmp['step'] = [agt_step] + ctx_steps
         data_tmp['norm_center'] = norm_center
         data_tmp['rot'] = rot
         data_tmp['theta'] = theta
@@ -149,16 +168,11 @@ class ArgoDataset(Dataset):
 
     def get_obj_feats(self, data):
         poly_feats, gt_preds, has_preds = [], [], []
-        flag = true
+        flag = True
         id = 0
-        for traj, step ,timestamp, norm_center in zip(data['trajs'], data['steps'], data['timestamp'], data['norm_center']):
+        for traj, step ,timestamp in zip(data['trajs'], data['step'], data['timestamp']):
             if 19 not in step:  # 删掉step不够20的数据
                 continue
-            # 重新按时间排了下序
-            idcs = step.argsort()
-            step = step[idcs]
-            traj = traj[idcs]
-            timestamp = timestamp[idcs]
 
             '''处理预测数据   step不够的补0，has_pred = 0表示补0的
             per-step offsets, 从norm-center开始
@@ -168,7 +182,7 @@ class ArgoDataset(Dataset):
             future_mask = np.logical_and(step >= 20, step < 50)
 
             post_step = step[future_mask] - 20# future step 从0开始计数
-            post_traj = traj[future_mask] - norm_center
+            post_traj = traj[future_mask] - data['norm_center']
             gt_pred[post_step] = post_traj
             has_pred[post_step] = 1
 
@@ -187,10 +201,10 @@ class ArgoDataset(Dataset):
             poly_feat = np.zeros((19, 9), np.float32)
 
             feat = np.zeros((20, 2), np.float32)
-            feat[obs_step] = np.matmul(rot, (obs_traj - norm_center.reshape(-1, 2)).T).T
+            feat[obs_step] = np.matmul(data['rot'], (obs_traj - data['norm_center'].reshape(-1, 2)).T).T
 
             # 删掉超范围的
-            x_min, x_max, y_min, y_max = self.config['pred_range']
+            x_min, x_max, y_min, y_max = self.config['query_bbox']
             if feat[-1, 0] < x_min or feat[-1, 0] > x_max or feat[-1, 1] < y_min or feat[-1, 1] > y_max:
                 continue
 
@@ -200,10 +214,10 @@ class ArgoDataset(Dataset):
                 flag = False
 
             #speed
-            move = np.hstack((feat[:-1], feat[1:]))
-            speed = [np.sqrt(x ** 2 + y ** 2) for x, y in zip((move[0]-move[2]), (move[1]-move[3]))]
+            vector = np.hstack((feat[:-1], feat[1:]))
+            speed = [np.sqrt(x ** 2 + y ** 2) for x, y in zip((vector[:,0]-vector[:,2]), (vector[:,1]-vector[:,3]))]
 
-            poly_feat[:,0:4] = np.hstack((feat[:-1], feat[1:]))  #xs,ys,xe,ye
+            poly_feat[:,0:4] = vector  #xs,ys,xe,ye
             poly_feat[:,4] = type  # type: agent 0, obj 1, lane 2
             poly_feat[:,5] = obs_timestamp[:-1]  # att1 start time
             poly_feat[:,6] = obs_timestamp[1 :]  # att2 end time
@@ -225,25 +239,25 @@ class ArgoDataset(Dataset):
 
     def read_lane_data(self, data):
         id = data['item_num']
-        x_min, x_max, y_min, y_max = self.config['pred_range']
+        x_min, x_max, y_min, y_max = self.config['query_bbox']
         radius = max(abs(x_min), abs(x_max)) + max(abs(y_min), abs(y_max))
         lane_ids = self.am.get_lane_ids_in_xy_bbox(data['norm_center'][0], data['norm_center'][1], data['city'],radius)
         for lane_id in lane_ids:
-            traffic_control = am.lane_has_traffic_control_measure(
+            traffic_control = self.am.lane_has_traffic_control_measure(
                 lane_id, data['city'])
-            is_intersection = am.lane_is_in_intersection(lane_id, data['city'])
+            is_intersection = self.am.lane_is_in_intersection(lane_id, data['city'])
             lane = self.am.city_lane_centerlines_dict[data['city']][lane_id]
-            centerlane = am.get_lane_segment_centerline(lane_id, data['city'])  # 10,3维 包括高度
+            centerlane = self.am.get_lane_segment_centerline(lane_id, data['city'])  # 10,3维 包括高度
             # normalize to last observed timestamp point of agent and rot
             centerlane[:, :2] = np.matmul(data['rot'], (centerlane[:, :2] - data['norm_center']).T).T
 
             """得到lane的左右车道线坐标  调用现成的方法"""
-            pts = am.get_lane_segment_polygon(lane_id, data['city'])
+            pts = self.am.get_lane_segment_polygon(lane_id, data['city'])
             pts_len = (pts.shape[0] - 1) // 2
             if pts_len != 10:
                 print(pts_len)
-            lane_1 = np.matmul(rot, (pts[:pts_len, 0:2] - data['norm_center']).T).T
-            lane_2 = np.matmul(rot, (pts[pts_len:2 * pts_len, 0:2] - data['norm_center']).T).T
+            lane_1 = np.matmul(data['rot'], (pts[:pts_len, 0:2] - data['norm_center']).T).T
+            lane_2 = np.matmul(data['rot'], (pts[pts_len:2 * pts_len, 0:2] - data['norm_center']).T).T
 
             # lane1_feature:  xs,ys,xe,ye,type,att1,att2,att3,id
             poly_feat = np.zeros((9, 9), np.float32)
