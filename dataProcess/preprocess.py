@@ -33,7 +33,7 @@ def train(config):
     t = time.time()
     for i, data in enumerate(tqdm(train_loader)): #batch_num 0-6435
         # little dataset
-        if i >= 100:
+        if i >= 1:
             break
 
         data = dict(data)
@@ -47,7 +47,7 @@ def train(config):
                 'has_preds',
                 'idx',
             ]:
-                store[key] = to_numpy(data[key][j])
+                store[key] = data[key][j]
 
             stores[store["idx"]] = store
 
@@ -90,7 +90,7 @@ def val(config):
                 'has_preds',
                 'idx'
             ]:
-                store[key] = to_numpy(data[key][j])
+                store[key] = data[key][j]
 
             stores[store["idx"]] = store
 
@@ -132,7 +132,7 @@ def test(config):
                 'has_preds',
                 'idx'
             ]:
-                store[key] = to_numpy(data[key][j])
+                store[key] = data[key][j]
 
             stores[store["idx"]] = store
 

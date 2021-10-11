@@ -2,8 +2,7 @@ import copy
 import torch
 from torch import nn
 import torch.nn.functional as F
-
-import config
+from config import *
 
 class GlobalGraph(nn.Module):
     r"""
@@ -19,15 +18,16 @@ class GlobalGraph(nn.Module):
             len: the length of input feature vector.
         """
         super(GlobalGraph, self).__init__()
-        self.linears = [nn.Linear(len, len).to(config.device) for _ in range(3)]
+        self.linears = [nn.Linear(len, len).to(config['device']) for _ in range(3)] #.to(config['device'])
         self.layers_number = layers_number
 
     def last_layer(self, P):
+        index = torch.tensor([[0]]).to(config['device'])
         batch_size, n, len = P.shape
         Q = self.linears[0](P) # [batch_size, n, len]
         K = self.linears[1](P)  
         V = self.linears[2](P)
-        index = torch.stack([0] * n * len, dim=1).view(batch_size, n, len)
+        index = torch.stack([index] * n * len, dim=1).view(batch_size, n, len)
         Q = torch.gather(Q, 1, index)[:, 0:1, :] # [batch_size, 1, len]
         ans = torch.matmul(Q, K.permute(0, 2, 1))  # [batch_size, 1, len] x [batch_size, len, n] = [batch_size, 1, n]
         ans = F.softmax(ans, dim=2)

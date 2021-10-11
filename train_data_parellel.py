@@ -42,14 +42,14 @@ def main():
 
     # Data loader for training and eval
     train_dataset = Dataset(config["train_dir"], config, train=True)  #"dataset/train/data"
-    train_sampler = DistributedSampler(train_dataset, num_replicas=1, rank=0)
+    # train_sampler = DistributedSampler(train_dataset, num_replicas=1, rank=0)
     train_loader = DataLoader(train_dataset, batch_size=config["batch_size"], num_workers=config["workers"],
-        sampler=train_sampler, collate_fn=collate_fn, pin_memory=True, worker_init_fn=worker_init_fn, drop_last=True,)
+                              pin_memory=True, worker_init_fn=worker_init_fn, drop_last=True,)
 
     eval_dataset = Dataset(config["val_dir"], config, train=False)
-    eval_sampler = DistributedSampler(eval_dataset, num_replicas=1, rank=0)
-    eval_loader = DataLoader(eval_dataset, batch_size=config["batch_size"], num_workers=config["workers"],
-        sampler=eval_sampler, collate_fn=collate_fn, pin_memory=True,)
+    # eval_sampler = DistributedSampler(eval_dataset, num_replicas=1, rank=0)
+    eval_loader = DataLoader(eval_dataset, batch_size=config["batch_size"],
+                             num_workers=config["workers"], pin_memory=True, worker_init_fn=worker_init_fn)
 
     epoch = 25
     train_model(epoch, train_loader, eval_loader, vector_net, opt)
@@ -58,9 +58,10 @@ def train_model(epochs, train_loader, eval_loader, vector_net, optimizer, is_pri
     for epoch in range(epochs):
         for i, data in enumerate(train_loader):
             optimizer.zero_grad()
-            data = gpu(data)
-            outputs = vector_net(data['item_num'],  data['polyline_list'])
-            loss = loss_func(outputs, data['gt_preds'])
+            # data = gpu(data)
+            # outputs = vector_net(data['item_num'],  data['polyline_list'])
+            outputs = vector_net(data["item_num"][0].to(config['device']), data["polyline_list"])
+            loss = loss_func(outputs, data['gt_preds'][0])
             loss.backward()
             optimizer.step()
 

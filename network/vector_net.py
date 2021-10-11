@@ -2,7 +2,7 @@ import copy
 import torch
 from torch import nn
 
-import config
+from config import *
 from network.mlp import MLP
 from network.global_graph import GlobalGraph
 from network.sub_graph import SubGraph
@@ -77,12 +77,12 @@ class VectorNet(nn.Module):
             A tensor represents the embedding of prediction agent,
             shape is [batch_size, self.p_len]
         """
-        # assert target_id.dtype == torch.int64
+        # batch_size = item_num.shape[0]
         batch_size = item_num.shape[0]
 
         p_list = []
         for polyline in polyline_list:
-            polyline = polyline.to(config.device)
+            polyline = polyline.to(config['device'])
             polyline = torch.cat([polyline] * batch_size, axis=0) # [batch_size, v_number, v_len]
             p = self.sub_graph(polyline) # [batch_size, p_len]
             p_list.append(p)

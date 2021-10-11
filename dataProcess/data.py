@@ -33,11 +33,11 @@ class ArgoDataset(Dataset):
         if 'preprocess' in self.config and self.config['preprocess']:
             data = self.load_file[idx]
 
-            new_data = dict()
-            for key in ['item_num', 'polyline_list', 'rot', 'gt_preds', 'has_preds', 'idx',]:
-                if key in data:
-                    new_data[key] = ref_copy(data[key])
-            data = new_data
+            # new_data = dict()
+            # for key in ['item_num', 'polyline_list', 'rot', 'gt_preds', 'has_preds', 'idx',]:
+            #     if key in data:
+            #         new_data[key] = ref_copy(data[key])
+            # data = new_data
 
             return data
 
@@ -126,9 +126,9 @@ class ArgoDataset(Dataset):
         # AGENT的第20个时刻位置做为norm_center
         pre = agt_traj[18] - norm_center
         theta = np.pi - np.arctan2(pre[1], pre[0])
-        rot = np.asarray([
+        rot = torch.tensor(np.asarray([
             [np.cos(theta), -np.sin(theta)],
-            [np.sin(theta), np.cos(theta)]], np.float32)
+            [np.sin(theta), np.cos(theta)]], np.float32))
 
         data_tmp = dict()
         data_tmp['city'] = city
@@ -142,9 +142,9 @@ class ArgoDataset(Dataset):
         return data_tmp
 
     def get_obj_feats(self, data):
-        poly_feats, gt_preds, has_preds = [], [], []
+        poly_feats = [] #, gt_preds, has_preds
         type_flag = True
-        id = 0
+        id = torch.tensor([0], dtype = torch.int32)
         for traj, step ,timestamp in zip(data['trajs'], data['step'], data['timestamp']):
             if 19 not in step:  # 删掉step不够20的数据
                 continue
@@ -152,17 +152,12 @@ class ArgoDataset(Dataset):
             '''处理预测数据   step不够的补0，has_pred = 0表示补0的
             per-step offsets, 从norm-center开始
             '''
-            gt_pred = np.zeros((30, 2), np.float32)
-            has_pred = np.zeros(30, np.bool)
+            gt_pred = torch.tensor(np.zeros((30, 2), np.float32))
+            has_pred = torch.tensor(np.zeros(30, np.bool))
             future_mask = np.logical_and(step >= 20, step < 50)
 
             post_step = step[future_mask] - 20# future step 从0开始计数
             post_traj = traj[future_mask] - data['norm_center']
-            gt_pred[post_step] = post_traj
-            has_pred[post_step] = 1
-
-            gt_preds.append(gt_pred)
-            has_preds.append(has_pred)
 
             '''处理观察到的数据
             speed   变成vector
@@ -171,7 +166,6 @@ class ArgoDataset(Dataset):
             obs_step = step[obs_mask]
             obs_traj = traj[obs_mask]
             obs_timestamp = timestamp[obs_mask]
-
 
             for i in range(len(obs_step)):
                 temp = 19 - (len(obs_step) - 1) + i
@@ -182,15 +176,15 @@ class ArgoDataset(Dataset):
             #做数据统一的处理
 
             # 特征处理成9维的，xs,ys,xe,ye,type,att1,att2,att3,id
-            poly_feat = np.zeros((19, 9), np.float32)
+            poly_feat = torch.tensor(np.zeros((19, 9), np.float32))
 
             feat = np.zeros((20, 2), np.float32)
             feat[obs_step] = np.matmul(data['rot'], (obs_traj - data['norm_center'].reshape(-1, 2)).T).T
             if len(obs_step)!=len(obs_timestamp):
                 continue
 
-            ts = np.zeros((20), np.float32)
-            ts[obs_step] = obs_timestamp
+            ts = torch.tensor(np.zeros((20), np.float32))
+            ts[obs_step] = torch.tensor(obs_timestamp, dtype=torch.float)
 
             # 删掉超范围的
             x_min, x_max, y_min, y_max = self.config['query_bbox']
@@ -201,28 +195,32 @@ class ArgoDataset(Dataset):
             if type_flag:
                 type = 0 #只有第一次agent 时为0，其他obj为1
                 type_flag = False
+                gt_pred[post_step] = torch.tensor(post_traj,dtype=torch.float)
+                has_pred[post_step] = 1
+                # gt_preds.append(gt_pred)
+                # has_preds.append(has_pred)
 
             #speed
-            vector = np.hstack((feat[:-1], feat[1:]))
-            speed = [np.sqrt(x ** 2 + y ** 2) for x, y in zip((vector[:,0]-vector[:,2]), (vector[:,1]-vector[:,3]))]
+            vector = torch.tensor(np.hstack((feat[:-1], feat[1:])))
+            speed = torch.tensor([np.sqrt(x ** 2 + y ** 2) for x, y in zip((vector[:,0]-vector[:,2]), (vector[:,1]-vector[:,3]))])
 
             poly_feat[:,0:4] = vector  #xs,ys,xe,ye
             poly_feat[:,4] = type  # type: agent 0, obj 1, lane 2
             poly_feat[:,5] = ts[:-1]  # att1 start time
             poly_feat[:,6] = ts[1 :]  # att2 end time
             poly_feat[:,7] = speed  # att3 speed
-            poly_feat[:,8] = id  # id
+            poly_feat[:,8] = id[0]  # id
 
-            id += 1
+            id[0] += 1
             poly_feats.append(poly_feat)
 
         # poly_feats = np.asarray(poly_feats, np.float32)
-        gt_preds = np.asarray(gt_preds, np.float32)
-        has_preds = np.asarray(has_preds, np.bool)
+        # gt_preds = np.asarray(gt_preds, np.float32)
+        # has_preds = np.asarray(has_preds, np.bool)
 
         data['poly_feats'] = poly_feats
-        data['gt_preds'] = gt_preds
-        data['has_preds'] = has_preds
+        data['gt_preds'] = gt_pred
+        data['has_preds'] = has_pred
         data['item_num'] = id
         return data
 
@@ -249,8 +247,8 @@ class ArgoDataset(Dataset):
             lane_2 = np.matmul(data['rot'], (pts[pts_len:2 * pts_len, 0:2] - data['norm_center']).T).T
 
             # lane1_feature:  xs,ys,xe,ye,type,att1,att2,att3,id
-            poly_feat = np.zeros((pts_len-1, 9), np.float32)
-            poly_feat[:, 0:4] = np.hstack((lane_1[0:(pts_len - 1)], lane_1[1:]))  # xs,ys,xe,ye
+            poly_feat = torch.tensor(np.zeros((pts_len-1, 9), np.float32))
+            poly_feat[:, 0:4] = torch.tensor(np.hstack((lane_1[0:(pts_len - 1)], lane_1[1:])))  # xs,ys,xe,ye
             poly_feat[:, 4] = 2  # type: agent 0, obj 1, lane 2
             if traffic_control:
                 poly_feat[:, 5] = 1  # att1 traffic_control
@@ -266,14 +264,14 @@ class ArgoDataset(Dataset):
                 poly_feat[:, 7] = 1  # att3 intersection
             else:
                 poly_feat[:, 7] = 0
-            poly_feat[:, 8] = id  # id
+            poly_feat[:, 8] = id[0]  # id
 
             data['poly_feats'].append(poly_feat)
-            id +=1
+            id[0] +=1
 
             # lane2_feature:  xs,ys,xe,ye,type,att1,att2,att3,id
-            poly_feat1 = np.zeros((pts_len-1, 9), np.float32)
-            poly_feat1[:, 0:4] = np.hstack((lane_2[0:(pts_len - 1)], lane_2[1:]))  # xs,ys,xe,ye
+            poly_feat1 = torch.tensor(np.zeros((pts_len-1, 9), np.float32))
+            poly_feat1[:, 0:4] = torch.tensor(np.hstack((lane_2[0:(pts_len - 1)], lane_2[1:])))  # xs,ys,xe,ye
             poly_feat1[:, 4] = 2  # type: agent 0, obj 1, lane 2
             if traffic_control:
                 poly_feat1[:, 5] = 1  # att1 traffic_control
@@ -289,10 +287,10 @@ class ArgoDataset(Dataset):
                 poly_feat1[:, 7] = 1  # att3 intersection
             else:
                 poly_feat1[:, 7] = 0
-            poly_feat1[:, 8] = id  # id
+            poly_feat1[:, 8] = id[0]  # id
 
             data['poly_feats'].append(poly_feat1)
-            id += 1
+            id[0] += 1
 
         data['item_num'] = id
         # data['poly_feats'] = np.asarray(data['poly_feats'], np.float32)

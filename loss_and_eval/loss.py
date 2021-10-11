@@ -1,4 +1,5 @@
 import torch
+from config import *
 
 def loss_func(a, b, alpha=0.1):
     r"""
@@ -17,6 +18,6 @@ def loss_func(a, b, alpha=0.1):
     Returns:
         A value.
     """
-    L_traj = torch.nn.MSELoss()
+    L_traj = torch.nn.MSELoss().to(config['device'])
     L_node = 0
     return L_traj(a, b) + alpha * L_node
