@@ -33,39 +33,11 @@ class ArgoDataset(Dataset):
         if 'preprocess' in self.config and self.config['preprocess']:
             data = self.load_file[idx]
 
-            if self.train and self.config['rot_aug']:
-                new_data = dict()
-                for key in ['city', 'norm_center', 'gt_preds', 'has_preds']:
-                    if key in data:
-                        new_data[key] = ref_copy(data[key])
-
-                dt = np.random.rand() * self.config['rot_size']#np.pi * 2.0
-                theta = data['theta'] + dt
-                new_data['theta'] = theta
-                new_data['rot'] = np.asarray([
-                    [np.cos(theta), -np.sin(theta)],
-                    [np.sin(theta), np.cos(theta)]], np.float32)
-
-                rot = np.asarray([
-                    [np.cos(-dt), -np.sin(-dt)],
-                    [np.sin(-dt), np.cos(-dt)]], np.float32)
-                new_data['feats'] = data['feats'].copy()
-                new_data['feats'][:, :, :2] = np.matmul(new_data['feats'][:, :, :2], rot)
-                new_data['ctrs'] = np.matmul(data['ctrs'], rot)
-
-                graph = dict()
-                for key in ['num_nodes', 'turn', 'control', 'intersect', 'pre', 'suc', 'lane_idcs', 'left_pairs', 'right_pairs', 'left', 'right']:
-                    graph[key] = ref_copy(data['graph'][key])
-                graph['ctrs'] = np.matmul(data['graph']['ctrs'], rot)
-                graph['feats'] = np.matmul(data['graph']['feats'], rot)
-                new_data['graph'] = graph
-                data = new_data
-            else:
-                new_data = dict()
-                for key in ['city', 'norm_center', 'gt_preds', 'has_preds', 'theta', 'rot', 'feats', 'ctrs', 'graph']:
-                    if key in data:
-                        new_data[key] = ref_copy(data[key])
-                data = new_data
+            new_data = dict()
+            for key in ['item_num', 'polyline_list', 'rot', 'gt_preds', 'has_preds', 'idx',]:
+                if key in data:
+                    new_data[key] = ref_copy(data[key])
+            data = new_data
 
             return data
 
@@ -79,6 +51,8 @@ class ArgoDataset(Dataset):
         data = self.read_agt_obj_data(idx)
         data['idx'] = idx
         data = self.get_obj_feats(data)
+        if data==False:
+            return None
         data = self.read_lane_data(data)
         data = self.filter_data(data) #筛选特征
         return data
@@ -169,7 +143,7 @@ class ArgoDataset(Dataset):
 
     def get_obj_feats(self, data):
         poly_feats, gt_preds, has_preds = [], [], []
-        flag = True
+        type_flag = True
         id = 0
         for traj, step ,timestamp in zip(data['trajs'], data['step'], data['timestamp']):
             if 19 not in step:  # 删掉step不够20的数据
@@ -198,11 +172,25 @@ class ArgoDataset(Dataset):
             obs_traj = traj[obs_mask]
             obs_timestamp = timestamp[obs_mask]
 
+
+            for i in range(len(obs_step)):
+                temp = 19 - (len(obs_step) - 1) + i
+                if obs_step[i] == 19 - (len(obs_step) - 1) + i:
+                    break
+            obs_step = obs_step[i:]
+            obs_traj = obs_traj[i:]
+            #做数据统一的处理
+
             # 特征处理成9维的，xs,ys,xe,ye,type,att1,att2,att3,id
             poly_feat = np.zeros((19, 9), np.float32)
 
             feat = np.zeros((20, 2), np.float32)
             feat[obs_step] = np.matmul(data['rot'], (obs_traj - data['norm_center'].reshape(-1, 2)).T).T
+            if len(obs_step)!=len(obs_timestamp):
+                continue
+
+            ts = np.zeros((20), np.float32)
+            ts[obs_step] = obs_timestamp
 
             # 删掉超范围的
             x_min, x_max, y_min, y_max = self.config['query_bbox']
@@ -210,9 +198,9 @@ class ArgoDataset(Dataset):
                 continue
 
             type = 1
-            if flag:
+            if type_flag:
                 type = 0 #只有第一次agent 时为0，其他obj为1
-                flag = False
+                type_flag = False
 
             #speed
             vector = np.hstack((feat[:-1], feat[1:]))
@@ -220,8 +208,8 @@ class ArgoDataset(Dataset):
 
             poly_feat[:,0:4] = vector  #xs,ys,xe,ye
             poly_feat[:,4] = type  # type: agent 0, obj 1, lane 2
-            poly_feat[:,5] = obs_timestamp[:-1]  # att1 start time
-            poly_feat[:,6] = obs_timestamp[1 :]  # att2 end time
+            poly_feat[:,5] = ts[:-1]  # att1 start time
+            poly_feat[:,6] = ts[1 :]  # att2 end time
             poly_feat[:,7] = speed  # att3 speed
             poly_feat[:,8] = id  # id
 
@@ -255,13 +243,13 @@ class ArgoDataset(Dataset):
             """得到lane的左右车道线坐标  调用现成的方法"""
             pts = self.am.get_lane_segment_polygon(lane_id, data['city'])
             pts_len = (pts.shape[0] - 1) // 2
-            if pts_len != 10:
-                print(pts_len)
+            # if pts_len != 10:
+            #     print(pts_len)
             lane_1 = np.matmul(data['rot'], (pts[:pts_len, 0:2] - data['norm_center']).T).T
             lane_2 = np.matmul(data['rot'], (pts[pts_len:2 * pts_len, 0:2] - data['norm_center']).T).T
 
             # lane1_feature:  xs,ys,xe,ye,type,att1,att2,att3,id
-            poly_feat = np.zeros((9, 9), np.float32)
+            poly_feat = np.zeros((pts_len-1, 9), np.float32)
             poly_feat[:, 0:4] = np.hstack((lane_1[0:(pts_len - 1)], lane_1[1:]))  # xs,ys,xe,ye
             poly_feat[:, 4] = 2  # type: agent 0, obj 1, lane 2
             if traffic_control:
@@ -284,7 +272,7 @@ class ArgoDataset(Dataset):
             id +=1
 
             # lane2_feature:  xs,ys,xe,ye,type,att1,att2,att3,id
-            poly_feat1 = np.zeros((9, 9), np.float32)
+            poly_feat1 = np.zeros((pts_len-1, 9), np.float32)
             poly_feat1[:, 0:4] = np.hstack((lane_2[0:(pts_len - 1)], lane_2[1:]))  # xs,ys,xe,ye
             poly_feat1[:, 4] = 2  # type: agent 0, obj 1, lane 2
             if traffic_control:
@@ -323,6 +311,7 @@ class ArgoDataset(Dataset):
         new_data['rot'] = data['rot']
         new_data['gt_preds'] = data['gt_preds']
         new_data['has_preds'] = data['has_preds']
+        new_data['idx'] = data['idx']
 
         return new_data
 
