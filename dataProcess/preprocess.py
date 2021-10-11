@@ -14,24 +14,7 @@ from torch.multiprocessing import reductions
 from multiprocessing.reduction import ForkingPickler
 from data import ArgoDataset as Dataset, from_numpy, ref_copy, collate_fn
 import pickle
-root_path = os.path.dirname(os.path.abspath(__file__))
-
-config = dict()
-config["query_bbox"] = [-100, 100, -100, 100]
-config["batch_size"] = 2
-config["workers"] = 0
-config["val_workers"] = 0#32
-config["train_dir"] = "./data/train"   #os.path.join(root_path, "data/train")
-config["val_dir"] = "./data/val"       #os.path.join(root_path, "./data/val")
-config["test_dir"] = "./data/test"     #os.path.join(root_path, "./data/test")
-# Preprocessed Dataset
-config["preprocess"] = True # whether use preprocess or not
-config["preprocess_train"] = os.path.join(root_path, "dataset","preprocess", "train.p")
-config["preprocess_val"] = os.path.join(root_path,"dataset", "preprocess", "val.p")
-config['preprocess_test'] = os.path.join(root_path, "dataset", 'preprocess', 'test.p')
-
-# sys.path.insert(0, root_path)
-
+from config import *
 
 def train(config):
     # Data loader for training set

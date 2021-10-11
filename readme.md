@@ -54,35 +54,35 @@
 
 ## 代码实现
 
-### 1.数据预处理部分
+### 1.数据预处理部分  
 
-代码结构参考lanegcn的预处理过程
+代码结构参考lanegcn的预处理过程  
 
-处理过程：
+**处理过程**：  
 
-​	时间戳归一化（减去最小值）
+​	时间戳归一化（减去最小值）  
 
-​	位置归一化标准（根据last_obs的位置）并rot
+​	位置归一化标准（根据last_obs的位置）并rot  
 
-​	traj的特征：xs, ys, xe, ye, type, start_time, end_time, speed, polyline_id（不足20的补0）
+​	traj的特征：xs, ys, xe, ye, type, start_time, end_time, speed, polyline_id（不足20的补0）  
 
-​	lane的特征：xs, ys, xe, ye, type, traffic_control, turn_direction, intersection, polyline_id
+​	lane的特征：xs, ys, xe, ye, type, traffic_control, turn_direction, intersection, polyline_id  
 
-其中：type：AGENT=0， ctx_traj=1，lane=2
+其中：type：AGENT=0， ctx_traj=1，lane=2  
 
-​			direction:  left=1，right=2，None=0
+​			direction:  left=1，right=2，None=0  
 
-​			 traffic_control,intersection：true=1， false=0
+​			 traffic_control,intersection：true=1， false=0  
 
-最终data保存：
+**最终data保存**：  
 
-​			'item_num'：polyline数量
+​			'item_num'：polyline数量  
 
-​			'polyline_list'：polyline的特征，每个polyline包含的vector数量不同，但vector的特征长度都为9
-​			'rot'：保存旋转矩阵
-​			'gt_preds'：保存agent的future 坐标
-​			'has_preds'：未来30个时刻gt_preds是否有值
-​			'idx'：data index
+​			'polyline_list'：polyline的特征，每个polyline包含的vector数量不同，但vector的特征长度都为9  
+​			'rot'：保存旋转矩阵  
+​			'gt_preds'：保存agent的future 坐标   
+​			'has_preds'：未来30个时刻gt_preds是否有值  
+​			'idx'：data index  
 ### 2.模型框架
 代码参考 https://github.com/DQSSSSS/VectorNet
 ### 3.实验结果
