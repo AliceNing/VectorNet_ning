@@ -56,46 +56,33 @@
 
 ### 1.数据预处理部分
 
-参考 https://github.com/xk-huang/yet-another-vectornet
+代码结构参考lanegcn的预处理过程
 
-预处理入口：compute_feature_module.py   读文件调用   compute_feature_for_one_seq函数
+处理过程：
 
-时间戳归一化（减去最小值）
+​	时间戳归一化（减去最小值）
 
-位置归一化标准（last_obs的位置）norm_center
+​	位置归一化标准（根据last_obs的位置）并rot
 
-**get_nearby_lane_feature_ls**函数根据agent位置得到周围30米内的的laneid，并得到其traffic_control，is_intesection属性以及centerlane，并根据centerline计算的到其左右车道的边缘线坐标（**使用函数get_halluc_lane，这块利用argose提供的get_lane_segment_polygon函数计算感觉能更好一点**)，输出的三维结果是包含高度
+​	traj的特征：xs, ys, xe, ye, type, start_time, end_time, speed, polyline_id（不足20的补0）
 
-最终lane的属性为[左车道线坐标9\*6，右车道线坐标9\*6，交通管控bool，路口bool，lane_id-int] ，6维是因为包含了高度值。
+​	lane的特征：xs, ys, xe, ye, type, traffic_control, turn_direction, intersection, polyline_id
 
-自定义代码得到的lane：
+其中：type：AGENT=0， ctx_traj=1，lane=2
 
-![](images/Figure_0.png)
+​			direction:  left=1，right=2，None=0
 
-调用get_lane_segment_polygon得到的lane：
+​			 traffic_control,intersection：true=1， false=0
 
-![](images/Figure_1.png)
+最终data保存：
 
-可以发现比较相似
+​			'item_num'：polyline数量
 
-**get_nearby_moving_obj_feature_ls**函数根据AGENT来筛选上下文的Obj，条件太严？返回都为空—>解决：测试集的obj序列长度为20，单独拎出去处理
-
-**get_agent_feature_ls**函数用来处理agent属性，
-
-最终返回值：xys是前20个时刻的vector19\*4（减去norm_center了），str的AGENT类型，ts是vector两点的平均 时间戳，str的track_id，gt_xys是后30个时刻的位置（减去norm_center了）
-
-encoding_features函数：把agent，obj，和lane的feature都堆积到data里，然后调用save_features进行保存
-
-**最后保存的data格式：**
-
-"POLYLINE_FEATURES"：保存了所有的agent,obj,和lane的特征，都是8维，其中traj的特征是（xs, ys, xe, ye, timestamp, NULL, NULL, polyline_id），lane的特征是(xs, ys, xe, ye, NULL, zs, ze, polyline_id)
-
-"GT"：30个时刻的相对last_obj坐标
-
-"TRAJ_ID_TO_MASK"：字典,保存Traj的数据索引{0:(0,19),1:(19,38),2:(38,57)}
-
-"LANE_ID_TO_MASK"：字典,保存Traj的数据索引{3:(0,9),1:(9,18),2:(18,27)……}
-
- "TARJ_LEN"：traj数量
-
-"LANE_LEN"：lane数量
+​			'polyline_list'：polyline的特征，每个polyline包含的vector数量不同，但vector的特征长度都为9
+​			'rot'：保存旋转矩阵
+​			'gt_preds'：保存agent的future 坐标
+​			'has_preds'：未来30个时刻gt_preds是否有值
+​			'idx'：data index
+### 2.模型框架
+代码参考 https://github.com/DQSSSSS/VectorNet
+### 3.实验结果

@@ -46,11 +46,11 @@ def train(config):
         drop_last=False,
     )
 
-    stores = [None for x in range(4)]  #205942
+    stores = [None for x in range(200)]  #205942
     t = time.time()
     for i, data in enumerate(tqdm(train_loader)): #batch_num 0-6435
         # little dataset
-        if i >= 2:
+        if i >= 100:
             break
 
         data = dict(data)
@@ -88,12 +88,12 @@ def val(config):
         collate_fn=collate_fn,
         pin_memory=True,
     )
-    stores = [None for x in range(4)]  #39472
+    stores = [None for x in range(200)]  #39472
 
     t = time.time()
     for i, data in enumerate(tqdm(val_loader)):  # batch_num 0-6435
         # little dataset
-        if i >= 2:
+        if i >= 100:
             break
 
         data = dict(data)
@@ -130,12 +130,12 @@ def test(config):
         collate_fn=collate_fn,
         pin_memory=True,
     )
-    stores = [None for x in range(4)] #78143 ,1024
+    stores = [None for x in range(100)] #78143 ,1024
 
     t = time.time()
     for i, data in enumerate(tqdm(test_loader)):  # batch_num 0-6435
         # little dataset
-        if i >= 2:
+        if i >= 50:
             break
 
         data = dict(data)
@@ -178,7 +178,7 @@ if __name__ == "__main__":
     config["preprocess"] = False  # we use raw data to generate preprocess data
     os.makedirs(os.path.dirname(config['preprocess_train']), exist_ok=True)
 
-    # train(config)
-    # val(config)
+    train(config)
+    val(config)
     test(config)
 
