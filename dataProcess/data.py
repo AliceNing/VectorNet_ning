@@ -4,10 +4,12 @@ from torch.utils.data import Dataset
 from scipy import sparse
 import os
 import copy
+from config import *
 import pandas as pd
 from typing import List, Dict, Any
 from argoverse.data_loading.argoverse_forecasting_loader import ArgoverseForecastingLoader
 from argoverse.map_representation.map_api import ArgoverseMap
+from torch.utils.data import DataLoader
 from skimage.transform import rotate
 
 
@@ -51,8 +53,6 @@ class ArgoDataset(Dataset):
         data = self.read_agt_obj_data(idx)
         data['idx'] = idx
         data = self.get_obj_feats(data)
-        if data==False:
-            return None
         data = self.read_lane_data(data)
         data = self.filter_data(data) #筛选特征
         return data
@@ -343,3 +343,25 @@ def ref_copy(data):
             d[key] = ref_copy(data[key])
         return d
     return data
+
+def collate_fn(batch):
+    return_batch = dict()
+    # Batching by use a list for non-fixed size
+    for key in batch[0].keys():
+        return_batch[key] = [x[key] for x in batch]
+    return return_batch
+
+
+if __name__ == "__main__":
+    dataset = ArgoDataset("./data/train", config, train=True)  # "dataset/train/data"
+    train_loader = DataLoader(dataset, batch_size=config["batch_size"], num_workers=config["workers"],
+                              collate_fn=collate_fn, drop_last=True,)
+    for epoch in range(2):
+        for i, data in enumerate(train_loader):
+            print("epoch", epoch, "的第", i, "个inputs",
+                  "item_num:", data["item_num"][0].data.size(),
+                  "polyline_list:", len(data["polyline_list"][0]),
+                  "future:", data["gt_preds"][0].data.size())
+            # if i == 99:
+            #     print("1")
+

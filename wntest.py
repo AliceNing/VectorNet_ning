@@ -1,4 +1,5 @@
 import torch
+from torch import nn
 import numpy as np
 # from util import *
 # v_num = torch.randint(1, 10, (1,)).int()
@@ -17,24 +18,30 @@ import numpy as np
 # d = b.squeeze(1)  #只有维度为1时才会去掉
 # print(d)
 
-def gpu(data):
-    """
-    Transfer tensor in `data` to gpu recursively
-    `data` can be dict, list or tuple
-    """
-    if isinstance(data, list) or isinstance(data, tuple):
-        data = [gpu(x) for x in data]
-    elif isinstance(data, dict):
-        data = {key:gpu(_data) for key,_data in data.items()}
-    elif isinstance(data, torch.Tensor):
-        data = data.cuda()
-    return data.contiguous().cuda()
-
 """list numpy tensor 转换"""
-a = [[1,2,3], [2,3,4,5,6], [5,4,6,2]]
-b = gpu(a)
-d = np.array(a, dtype=np.float32)
-# b = b.astype(float)
-c =  torch.from_numpy(b)
-print("asdff")
+a1 = torch.tensor([[1,2,3]])
+a2 = torch.tensor([[2,3,4]])
+a3 = torch.tensor([[5,4,6]])
+b = [a1,a2,a3]
+c = torch.stack(b, 0)
+d = torch.squeeze(c, 1)
+# c1 = torch.cat(b, 0)
+print("asd")
 
+"""nn.Linear"""
+# m = nn.Linear(20, 30)  #  weights:20*30
+# # input = torch.randn(128, 20)
+# input = torch.randn(2, 128, 20)
+# output = m(input)
+# print(output.size())
+
+"""nn.norm"""
+# input = torch.randn(20, 5, 10, 10)
+# m = nn.LayerNorm(10)
+# output = m(input)
+# print("sdf")
+
+# x = torch.zeros(2, 1, 2, 1, 2)
+# print(x.size())
+# y = torch.squeeze(x,3)
+# print(y.size())

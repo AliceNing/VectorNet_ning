@@ -1,4 +1,5 @@
 import torch
+from config import *
 
 r"""
 Reference:
@@ -6,7 +7,7 @@ https://eval.ai/web/challenges/challenge-page/454/evaluation
 https://github.com/argoai/argoverse-api/blob/master/argoverse/evaluation/eval_forecasting.py
 """
 
-def get_ADE(a, b):
+def get_ADE(pred, target):
     r"""
     Calculate Average Displacement Error(ADE).
     Args:
@@ -16,12 +17,13 @@ def get_ADE(a, b):
         ADE, \frac{1}{n} \sum sqrt((A_x_i-B_x_i)^2 + (A_y_i-B_y_i)^2)
         [batch_size, 1]
     """
-    assert a.shape == b.shape
-    tmp = torch.sqrt(torch.sum((a - b) ** 2, dim=2)) # [batch_size, len]
+    target = torch.stack(target, 0).to(config['device'])
+    assert pred.shape == target.shape
+    tmp = torch.sqrt(torch.sum((pred - target) ** 2, dim=2)) # [batch_size, len]
     ade = torch.mean(tmp, dim=1, keepdim=True) # [batch_size, 1]
     return ade 
 
-def get_FDE(a, b):
+def get_FDE(pred, target):
     r"""
     Calculate Final Displacement Error(FDE).
     Args:
@@ -30,13 +32,14 @@ def get_FDE(a, b):
     Returns: 
         FDE, [batch_size, 1]
     """
-    assert a.shape == b.shape
-    a = a[:, -1, :] # [batch_size, dim]
-    b = b[:, -1, :] 
-    fde = torch.sqrt(torch.sum((a - b) ** 2, dim=1, keepdim=True)) # [batch_size, 1]
+    target = torch.stack(target, 0).to(config['device'])
+    assert pred.shape == target.shape
+    pred = pred[:, -1, :] # [batch_size, dim]
+    target = target[:, -1, :]
+    fde = torch.sqrt(torch.sum((pred - target) ** 2, dim=1, keepdim=True)) # [batch_size, 1]
     return fde 
 
-def get_DE(a, b, t_list):
+def get_DE(pred, target, t_list):
     r"""
     Calculate Displacement Error(DE) at time `t` in `t_list`.
     Args:
@@ -46,8 +49,9 @@ def get_DE(a, b, t_list):
     Returns: 
         DE, [batch_size, n]
     """
+    target = torch.stack(target, 0).to(config['device'])
     t_tensor = torch.tensor(t_list)
-    a = torch.index_select(a, 1, t_tensor) # [batch_size, n, dim]
-    b = torch.index_select(b, 1, t_tensor)
-    de = torch.sqrt(torch.sum((a - b) ** 2, dim=2))
+    pred = torch.index_select(pred, 1, t_tensor) # [batch_size, n, dim]
+    target = torch.index_select(target, 1, t_tensor)
+    de = torch.sqrt(torch.sum((pred - target) ** 2, dim=2))
     return de

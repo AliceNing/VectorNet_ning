@@ -4,7 +4,7 @@ root_path = os.path.dirname(os.path.abspath(__file__))
 
 config = dict()
 config["query_bbox"] = [-100, 100, -100, 100]
-config["batch_size"] = 1
+config["batch_size"] = 2
 config["workers"] = 0
 config["val_workers"] = 0#32
 config["train_dir"] = "./data/train"   #os.path.join(root_path, "data/train")

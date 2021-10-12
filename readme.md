@@ -85,4 +85,4 @@
 ​			'idx'：data index  
 ### 2.模型框架
 代码参考 https://github.com/DQSSSSS/VectorNet
-### 3.实验结果
+问题：batch里不同data的 polyline数量不一致

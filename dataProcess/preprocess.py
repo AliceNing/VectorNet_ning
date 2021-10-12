@@ -33,7 +33,7 @@ def train(config):
     t = time.time()
     for i, data in enumerate(tqdm(train_loader)): #batch_num 0-6435
         # little dataset
-        if i >= 1:
+        if i >= 200:
             break
 
         data = dict(data)
@@ -76,7 +76,7 @@ def val(config):
     t = time.time()
     for i, data in enumerate(tqdm(val_loader)):  # batch_num 0-6435
         # little dataset
-        if i >= 100:
+        if i >= 200:
             break
 
         data = dict(data)
@@ -118,7 +118,7 @@ def test(config):
     t = time.time()
     for i, data in enumerate(tqdm(test_loader)):  # batch_num 0-6435
         # little dataset
-        if i >= 50:
+        if i >= 100:
             break
 
         data = dict(data)

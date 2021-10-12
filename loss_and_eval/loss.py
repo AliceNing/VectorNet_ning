@@ -1,7 +1,7 @@
 import torch
 from config import *
 
-def loss_func(a, b, alpha=0.1):
+def loss_func(pred, target, alpha=0.1):
     r"""
     Loss in paper. L_traj + `alpha` * L_node
     L_traj:
@@ -18,6 +18,7 @@ def loss_func(a, b, alpha=0.1):
     Returns:
         A value.
     """
+    target = torch.stack(target,0).to(config['device'])
     L_traj = torch.nn.MSELoss().to(config['device'])
     L_node = 0
-    return L_traj(a, b) + alpha * L_node
+    return L_traj(pred, target) + alpha * L_node

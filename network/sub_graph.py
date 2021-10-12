@@ -3,13 +3,11 @@ from torch import nn
 import torch.nn.functional as F
 from network.mlp import MLP
 
-
 class SubGraph(nn.Module):
     r"""
     Subgraph of VectorNet. This network accept a number of initiated vectors belong to
     the same polyline, flow three layers of network, then output this polyline's feature vector.
     """
-
     def __init__(self, v_len, layers_number):
         r"""
         Given all vectors of this polyline, we should build a 3-layers subgraph network,
@@ -43,7 +41,6 @@ class SubGraph(nn.Module):
         assert x.shape == (batch_size, self.v_len * (2 ** self.layers_number))
         return x
 
-
 class SubGraphLayer(nn.Module):
     r"""
     One layer of subgraph, include the MLP of g_enc.
@@ -51,7 +48,6 @@ class SubGraphLayer(nn.Module):
     Input some vectors with 'len' length, the output's length is '2*len'(because of
     concat operator).
     """
-
     def __init__(self, len):
         r"""
         Args:
@@ -69,13 +65,11 @@ class SubGraphLayer(nn.Module):
             All processed vectors with shape [batch_size, n, len*2]
         """
         assert len(x.shape) == 3
-        x = self.g_enc(x)
+        x = self.g_enc(x) #可以直接batch
         batch_size, n, length = x.shape
-
         x2 = x.permute(0, 2, 1) # [batch_size, len, n]
         x2 = F.max_pool1d(x2, kernel_size=x2.shape[2])  # [batch_size, len, 1]
         x2 = torch.cat([x2] * n, dim=2)  # [batch_size, len, n]
-
         y = torch.cat((x2.permute(0, 2, 1), x), dim=2)
         assert y.shape == (batch_size, n, length*2)
         return y
