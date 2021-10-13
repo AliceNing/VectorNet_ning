@@ -17,7 +17,8 @@ def get_ADE(pred, target):
         ADE, \frac{1}{n} \sum sqrt((A_x_i-B_x_i)^2 + (A_y_i-B_y_i)^2)
         [batch_size, 1]
     """
-    target = torch.stack(target, 0).to(config['device'])
+    # target = torch.stack(target, 0).to(config['device'])
+    target = target.to(config['device'])
     assert pred.shape == target.shape
     tmp = torch.sqrt(torch.sum((pred - target) ** 2, dim=2)) # [batch_size, len]
     ade = torch.mean(tmp, dim=1, keepdim=True) # [batch_size, 1]
@@ -33,7 +34,7 @@ def get_FDE(pred, target):
         FDE, [batch_size, 1]
     """
     target = torch.stack(target, 0).to(config['device'])
-    assert pred.shape == target.shape
+    assert pred.shape == target.shape  #batch_size, 30, 2
     pred = pred[:, -1, :] # [batch_size, dim]
     target = target[:, -1, :]
     fde = torch.sqrt(torch.sum((pred - target) ** 2, dim=1, keepdim=True)) # [batch_size, 1]

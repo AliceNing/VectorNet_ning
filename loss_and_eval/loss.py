@@ -18,7 +18,8 @@ def loss_func(pred, target, alpha=0.1):
     Returns:
         A value.
     """
-    target = torch.stack(target,0).to(config['device'])
+    # target = torch.stack(target,0).to(config['device'])
+    # target = torch.stack(target,0).to(config['device'])
     L_traj = torch.nn.MSELoss().to(config['device'])
     L_node = 0
-    return L_traj(pred, target) + alpha * L_node
+    return L_traj(pred, target.to(config['device'])) + alpha * L_node

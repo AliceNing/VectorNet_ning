@@ -1,8 +1,5 @@
 import os
-os.umask(0) #  #修改文件模式，让进程有较大权限，保证进程有读写执行权限，这个不是一个好的方法。 
-os.environ["MKL_NUM_THREADS"] = "1"
-os.environ["NUMEXPR_NUM_THREADS"] = "1"
-os.environ["OMP_NUM_THREADS"] = "1"
+import torch
 import argparse
 import numpy as np
 import random
@@ -11,17 +8,21 @@ import sys
 import time
 import shutil
 from tqdm import tqdm
-import torch
 import torch.nn as nn
 from torch.utils.data import Sampler, DataLoader
 from numbers import Number
-from network.vector_net import VectorNet, VectorNetWithPredicting
+from network.vector_net_pad import VectorNet, VectorNetWithPredicting
 from dataProcess.data import *
 from loss_and_eval.evaluation import *
 from loss_and_eval.loss import *
 from torch.utils.data.distributed import DistributedSampler
 from torch.utils.tensorboard import SummaryWriter
 from config import *
+
+os.umask(0) #  #修改文件模式，让进程有较大权限，保证进程有读写执行权限，这个不是一个好的方法。
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+os.environ["OMP_NUM_THREADS"] = "1"
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 root_path = os.path.dirname(os.path.abspath(__file__))
@@ -32,7 +33,6 @@ def main():
     Dataset = ArgoDataset
     learning_rate = 0.001
     decayed_factor = 0.3
-    # Adam without clip
     opt = torch.optim.Adam(vector_net.parameters(), lr=learning_rate)
 
     if torch.cuda.device_count() > 1:
@@ -42,12 +42,10 @@ def main():
 
     # Data loader for training and eval
     train_dataset = Dataset(config["train_dir"], config, train=True)  #"dataset/train/data"
-    # train_sampler = DistributedSampler(train_dataset, num_replicas=1, rank=0)
     train_loader = DataLoader(train_dataset, batch_size=config["batch_size"], num_workers=config["workers"],
                               pin_memory=True, collate_fn=collate_fn, worker_init_fn=worker_init_fn, drop_last=True,)
 
     eval_dataset = Dataset(config["val_dir"], config, train=False)
-    # eval_sampler = DistributedSampler(eval_dataset, num_replicas=1, rank=0)
     eval_loader = DataLoader(eval_dataset, batch_size=config["batch_size"], num_workers=config["workers"],
                              pin_memory=True, collate_fn=collate_fn, worker_init_fn=worker_init_fn, drop_last=True,)
 
@@ -59,9 +57,9 @@ def train_model(epochs, train_loader, eval_loader, vector_net, optimizer, is_pri
         for i, data in enumerate(train_loader):
             data = dict(data)
             optimizer.zero_grad()
-            # outputs = vector_net(data["item_num"][0].to(config['device']), data["polyline_list"])
             outputs = vector_net(data)
             loss = loss_func(outputs, data['gt_preds'])
+            fde = torch.mean(get_FDE(outputs, data["gt_preds"]))
             loss.backward()
             optimizer.step()
 

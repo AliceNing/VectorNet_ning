@@ -27,7 +27,8 @@ class GlobalGraph(nn.Module):
         Q = self.linears[0](P) # [batch_size, n, len]
         K = self.linears[1](P)  
         V = self.linears[2](P)
-        index = torch.stack([index] * n * len, dim=1).view(batch_size, n, len)
+        temp = [index] * n * len * batch_size
+        index = torch.stack([index] * n * len * batch_size, dim=1).view(batch_size, n, len)  #batch_size, p_n, 72
         Q = torch.gather(Q, 1, index)[:, 0:1, :] # [batch_size, 1, len]
         ans = torch.matmul(Q, K.permute(0, 2, 1))  # [batch_size, 1, len] x [batch_size, len, n] = [batch_size, 1, n]
         ans = F.softmax(ans, dim=2)

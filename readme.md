@@ -20,7 +20,7 @@
 
 ![](images/vectornet_fig3.png)
 
-​	stetp1:  genc函数：MLP模型（FC+norm+Relu）。
+​	stetp1:  genc函数：MLP模型（FC+norm+Relu）。   多层的！！！整个sub-graph也是多层的！！！（3层）
 
 ​	step2:  agg函数：邻居节点特征整合，最大池化层。  
 
@@ -85,4 +85,8 @@
 ​			'idx'：data index  
 ### 2.模型框架
 代码参考 https://github.com/DQSSSSS/VectorNet
-问题：batch里不同data的 polyline数量不一致
+BUG：sub-graph 为三层，每一层里的genc函数也是堆叠了三层的MLP
+###To do list
+- [ ] 模型改进(加tensorboard)
+- [ ] 模型改进(并行)
+- [ ] 模型改进(结果可视化)
