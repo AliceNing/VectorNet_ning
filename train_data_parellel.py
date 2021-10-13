@@ -11,7 +11,7 @@ from tqdm import tqdm
 import torch.nn as nn
 from torch.utils.data import Sampler, DataLoader
 from numbers import Number
-from network.vector_net_pad import VectorNet, VectorNetWithPredicting
+from network.vector_net import VectorNet, VectorNetWithPredicting
 from dataProcess.data import *
 from loss_and_eval.evaluation import *
 from loss_and_eval.loss import *

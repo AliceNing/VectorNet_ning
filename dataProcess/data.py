@@ -14,9 +14,10 @@ from skimage.transform import rotate
 
 
 class ArgoDataset(Dataset):
-    def __init__(self, dir, config, train=True):
+    def __init__(self, dir, config, train=True, pad = False):
         self.config = config
         self.train = train
+        self.pad = pad
 
         if 'preprocess' in config and config['preprocess']:#加载预处理好的数据
             if train:
@@ -34,13 +35,6 @@ class ArgoDataset(Dataset):
         #加载处理好的数据
         if 'preprocess' in self.config and self.config['preprocess']:
             data = self.load_file[idx]
-
-            # new_data = dict()
-            # for key in ['item_num', 'polyline_list', 'rot', 'gt_preds', 'has_preds', 'idx',]:
-            #     if key in data:
-            #         new_data[key] = ref_copy(data[key])
-            # data = new_data
-
             return data
 
         #第一次数据预处理
@@ -246,48 +240,55 @@ class ArgoDataset(Dataset):
             lane_1 = np.matmul(data['rot'], (pts[:pts_len, 0:2] - data['norm_center']).T).T
             lane_2 = np.matmul(data['rot'], (pts[pts_len:2 * pts_len, 0:2] - data['norm_center']).T).T
 
+            if self.pad:
+                #vector长度都为19，pad补0
+                poly_feat = torch.tensor(np.zeros((19, 9), np.float32))
+                poly_feat1 = torch.tensor(np.zeros((19, 9), np.float32))
+            else:
+                #vector长度不一样
+                poly_feat = torch.tensor(np.zeros((pts_len-1, 9), np.float32))
+                poly_feat1 = torch.tensor(np.zeros((pts_len-1, 9), np.float32))
+
             # lane1_feature:  xs,ys,xe,ye,type,att1,att2,att3,id
-            poly_feat = torch.tensor(np.zeros((pts_len-1, 9), np.float32))
-            poly_feat[:, 0:4] = torch.tensor(np.hstack((lane_1[0:(pts_len - 1)], lane_1[1:])))  # xs,ys,xe,ye
-            poly_feat[:, 4] = 2  # type: agent 0, obj 1, lane 2
+            poly_feat[:pts_len-1, 0:4] = torch.tensor(np.hstack((lane_1[0:(pts_len - 1)], lane_1[1:])))  # xs,ys,xe,ye
+            poly_feat[:pts_len-1, 4] = 2  # type: agent 0, obj 1, lane 2
             if traffic_control:
-                poly_feat[:, 5] = 1  # att1 traffic_control
+                poly_feat[:pts_len-1, 5] = 1  # att1 traffic_control
             else:
-                poly_feat[:, 5] = 0
+                poly_feat[:pts_len-1, 5] = 0
             if lane.turn_direction == 'LEFT':  # att2 direction
-                poly_feat[:, 6] = 1
+                poly_feat[:pts_len-1, 6] = 1
             elif lane.turn_direction == 'RIGHT':
-                poly_feat[:, 6] = 2
+                poly_feat[:pts_len-1, 6] = 2
             else:
-                poly_feat[:, 6] = 0
+                poly_feat[:pts_len-1, 6] = 0
             if is_intersection:
-                poly_feat[:, 7] = 1  # att3 intersection
+                poly_feat[:pts_len-1, 7] = 1  # att3 intersection
             else:
-                poly_feat[:, 7] = 0
-            poly_feat[:, 8] = id[0]  # id
+                poly_feat[:pts_len-1, 7] = 0
+            poly_feat[:pts_len-1, 8] = id[0]  # id
 
             data['poly_feats'].append(poly_feat)
             id[0] +=1
 
             # lane2_feature:  xs,ys,xe,ye,type,att1,att2,att3,id
-            poly_feat1 = torch.tensor(np.zeros((pts_len-1, 9), np.float32))
-            poly_feat1[:, 0:4] = torch.tensor(np.hstack((lane_2[0:(pts_len - 1)], lane_2[1:])))  # xs,ys,xe,ye
-            poly_feat1[:, 4] = 2  # type: agent 0, obj 1, lane 2
+            poly_feat1[:pts_len-1, 0:4] = torch.tensor(np.hstack((lane_2[0:(pts_len - 1)], lane_2[1:])))  # xs,ys,xe,ye
+            poly_feat1[:pts_len-1, 4] = 2  # type: agent 0, obj 1, lane 2
             if traffic_control:
-                poly_feat1[:, 5] = 1  # att1 traffic_control
+                poly_feat1[:pts_len-1, 5] = 1  # att1 traffic_control
             else:
-                poly_feat1[:, 5] = 0
+                poly_feat1[:pts_len-1, 5] = 0
             if lane.turn_direction == 'LEFT':  # att2 direction
-                poly_feat1[:, 6] = 1
+                poly_feat1[:pts_len-1, 6] = 1
             elif lane.turn_direction == 'RIGHT':
-                poly_feat1[:, 6] = 2
+                poly_feat1[:pts_len-1, 6] = 2
             else:
-                poly_feat1[:, 6] = 0
+                poly_feat1[:pts_len-1, 6] = 0
             if is_intersection:
-                poly_feat1[:, 7] = 1  # att3 intersection
+                poly_feat1[:pts_len-1, 7] = 1  # att3 intersection
             else:
-                poly_feat1[:, 7] = 0
-            poly_feat1[:, 8] = id[0]  # id
+                poly_feat1[:pts_len-1, 7] = 0
+            poly_feat1[:pts_len-1, 8] = id[0]  # id
 
             data['poly_feats'].append(poly_feat1)
             id[0] += 1
@@ -344,7 +345,7 @@ def ref_copy(data):
         return d
     return data
 
-def collate_fn(batch):
+def collate_fn(batch):  #用list方式加载
     return_batch = dict()
     # Batching by use a list for non-fixed size
     for key in batch[0].keys():
@@ -353,9 +354,8 @@ def collate_fn(batch):
 
 
 if __name__ == "__main__":
-    dataset = ArgoDataset("./data/train", config, train=True)  # "dataset/train/data"
-    train_loader = DataLoader(dataset, batch_size=config["batch_size"], num_workers=config["workers"],
-                              collate_fn=collate_fn, drop_last=True,)
+    dataset = ArgoDataset("./data/train", config, train=True, pad=True)  # "dataset/train/data"
+    train_loader = DataLoader(dataset, batch_size=config["batch_size"], drop_last=True,)
     for epoch in range(2):
         for i, data in enumerate(train_loader):
             print("epoch", epoch, "的第", i, "个inputs",

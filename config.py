@@ -7,7 +7,7 @@ config["query_bbox"] = [-100, 100, -100, 100]
 config["batch_size"] = 2
 config["workers"] = 0
 config["val_workers"] = 0#32
-config["train_dir"] = "./data/train"   #os.path.join(root_path, "data/train")
+config["train_dir"] = "../data/train"   #os.path.join(root_path, "data/train")
 config["val_dir"] = "./data/val"       #os.path.join(root_path, "./data/val")
 config["test_dir"] = "./data/test"     #os.path.join(root_path, "./data/test")
 # Preprocessed Dataset

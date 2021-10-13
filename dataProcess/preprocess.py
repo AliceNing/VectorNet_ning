@@ -18,7 +18,7 @@ from config import *
 
 def train(config):
     # Data loader for training set
-    dataset = Dataset(config["train_dir"], config, train=True)
+    dataset = Dataset(config["train_dir"], config, train=True, pad = True)
     train_loader = DataLoader(
         dataset,
         batch_size=config["batch_size"],
@@ -29,11 +29,11 @@ def train(config):
         drop_last=False,
     )
 
-    stores = [None for x in range(200)]  #205942
+    stores = [None for x in range(2)]  #205942
     t = time.time()
     for i, data in enumerate(tqdm(train_loader)): #batch_num 0-6435
-        # little dataset
-        if i >= 200:
+        # little datase
+        if i >= 1:
             break
 
         data = dict(data)

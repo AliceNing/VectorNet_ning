@@ -54,7 +54,9 @@ class SubGraphLayer(nn.Module):
             len: the length of input vector.
         """
         super(SubGraphLayer, self).__init__()
-        self.g_enc = MLP(len, len)
+        self.g_enc = nn.Sequential()
+        for i in range(3):  # 3
+            self.g_enc.add_module("submlp{}".format(i), MLP(len, len))
 
     def forward(self, x):
         r"""

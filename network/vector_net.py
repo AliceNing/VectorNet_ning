@@ -3,9 +3,12 @@ import torch
 from torch import nn
 from config import *
 from util import *
+from dataProcess.random_dataloader import *
 from network.mlp import MLP
 from network.global_graph import GlobalGraph
 from network.sub_graph import SubGraph
+from loss_and_eval.evaluation import *
+from loss_and_eval.loss import *
 import torch.nn.functional as F
 
 class VectorNetWithPredicting(nn.Module):
@@ -77,30 +80,34 @@ class VectorNet(nn.Module):
             A tensor represents the embedding of prediction agent,
             shape is [batch_size, self.p_len]
         """
-        # batch_size = item_num.shape[0]
-        batch_size = len(item_num)
+        batch_size = item_num.shape[0]
 
-        p_batch_list = []
-        for i in range(batch_size):
-            p_list = []
-            for polyline in polyline_list[i]:
-                polyline = torch.unsqueeze(polyline, 0)  #1,19,9
-                p = self.sub_graph(polyline)  # [batch_size, p_len]  1, 72
-                p_list.append(p)
-            p_list = torch.stack(p_list, axis=1) # [batch_size, p_number, p_len]
-            # p_list = torch.squeeze(p_list, 1)
-            p_batch_list.append(p_list)
+        p_list = []
+        for polyline in polyline_list:
+            polyline = polyline.to(config['device'])
+            p = self.sub_graph(polyline)  # [batch_size, p_len]
+            p_list.append(p)
+        P = torch.stack(p_list, axis=1)  # [batch_size, p_number, p_len]
+        assert P.shape == (batch_size, len(polyline_list), self.p_len)
+        feature = self.global_graph(P)  # [batch_size, p_len]
+        assert feature.shape == (batch_size, self.p_len)
+        return feature
+
+if __name__ == "__main__":
+    epochs = 2
+    batch_size = 2
+    decay_lr_factor = 0.9
+    decay_lr_every = 10
+    lr = 0.005
+    # get model
+    vector_net = VectorNetWithPredicting(v_len=9, time_stamp_number=30).to(config['device'])
+    data_loader = RandomDataloader(20, 0, 0, 9, 2).training_dataloader
+    for epoch in range(epochs):
+        for data in data_loader:
+            outputs = vector_net(data)
+            loss = loss_func(outputs, data['gt_preds'])
+            ade = torch.mean(get_ADE(outputs, data["gt_preds"]))
+            print("ad")
 
 
-        # P = torch.stack(p_list, axis=1) # [batch_size, p_number, p_len]
-        # assert P.shape == (batch_size, len(polyline_list), self.p_len)
-
-        feature_batch = []
-        for i in range(batch_size):
-            feature = self.global_graph(p_batch_list[i])  # [batch_size, p_len]
-            feature_batch.append(feature)
-        # assert feature.shape == (batch_size, self.p_len)
-        feature_batch = torch.stack(feature_batch, 0)
-        feature_batch = torch.squeeze(feature_batch, 1)
-        return feature_batch
 
