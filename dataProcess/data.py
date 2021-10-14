@@ -139,6 +139,7 @@ class ArgoDataset(Dataset):
         poly_feats = [] #, gt_preds, has_preds
         type_flag = True
         id = torch.tensor([0], dtype = torch.int32)
+        obj_num = 0
         for traj, step ,timestamp in zip(data['trajs'], data['step'], data['timestamp']):
             if 19 not in step:  # 删掉step不够20的数据
                 continue
@@ -206,11 +207,15 @@ class ArgoDataset(Dataset):
             poly_feat[:,8] = id[0]  # id
 
             id[0] += 1
-            poly_feats.append(poly_feat)
-
-        # poly_feats = np.asarray(poly_feats, np.float32)
-        # gt_preds = np.asarray(gt_preds, np.float32)
-        # has_preds = np.asarray(has_preds, np.bool)
+            if self.pad and obj_num<30:   #pad 0,fixed len
+                poly_feats.append(poly_feat)
+                obj_num+=1
+            elif self.pad and obj_num >= 30:
+                break
+        n = 30-obj_num  #pad 0,fixed len
+        while self.pad and n > 0:
+            poly_feats.append(torch.tensor(np.zeros((19, 9), np.float32)))
+            n-=1
 
         data['poly_feats'] = poly_feats
         data['gt_preds'] = gt_pred
@@ -223,7 +228,10 @@ class ArgoDataset(Dataset):
         x_min, x_max, y_min, y_max = self.config['query_bbox']
         radius = max(abs(x_min), abs(x_max)) + max(abs(y_min), abs(y_max))
         lane_ids = self.am.get_lane_ids_in_xy_bbox(data['norm_center'][0], data['norm_center'][1], data['city'],radius)
+        lane_num = 0
         for lane_id in lane_ids:
+            if self.pad and lane_num >= 150:
+                break
             traffic_control = self.am.lane_has_traffic_control_measure(
                 lane_id, data['city'])
             is_intersection = self.am.lane_is_in_intersection(lane_id, data['city'])
@@ -241,7 +249,7 @@ class ArgoDataset(Dataset):
             lane_2 = np.matmul(data['rot'], (pts[pts_len:2 * pts_len, 0:2] - data['norm_center']).T).T
 
             if self.pad:
-                #vector长度都为19，pad补0
+                #vector长度都为19，pad补0  #pad 0,fixed len
                 poly_feat = torch.tensor(np.zeros((19, 9), np.float32))
                 poly_feat1 = torch.tensor(np.zeros((19, 9), np.float32))
             else:
@@ -291,7 +299,14 @@ class ArgoDataset(Dataset):
             poly_feat1[:pts_len-1, 8] = id[0]  # id
 
             data['poly_feats'].append(poly_feat1)
+            lane_num+=1
             id[0] += 1
+
+        n = 150 - lane_num  #pad 0,fixed len
+        while self.pad and n > 0:
+            data['poly_feats'].append(torch.tensor(np.zeros((19, 9), np.float32)))
+            data['poly_feats'].append(torch.tensor(np.zeros((19, 9), np.float32)))
+            n -= 1
 
         data['item_num'] = id
         # data['poly_feats'] = np.asarray(data['poly_feats'], np.float32)
