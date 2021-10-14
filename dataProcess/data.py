@@ -31,19 +31,12 @@ class ArgoDataset(Dataset):
             
     def __getitem__(self, idx):
 
-        '''lanegcn'''
         #加载处理好的数据
         if 'preprocess' in self.config and self.config['preprocess']:
             data = self.load_file[idx]
             return data
 
         #第一次数据预处理
-        '''data:  
-        X: xs,ys,xe,ye,type,att1,att2,att3,id
-        y: future step, pre-step,  time-step,2
-        ROT:
-        NORM_CENTER:
-        '''
         data = self.read_agt_obj_data(idx)
         data['idx'] = idx
         data = self.get_obj_feats(data)
@@ -329,27 +322,6 @@ class ArgoDataset(Dataset):
 
         return new_data
 
-def collate_fn(batch):
-    batch = from_numpy(batch)
-    return_batch = dict()
-    # Batching by use a list for non-fixed size
-    for key in batch[0].keys():
-        return_batch[key] = [x[key] for x in batch]
-    return return_batch
-
-def from_numpy(data):
-    """Recursively transform numpy.ndarray to torch.Tensor.
-    """
-    if isinstance(data, dict):
-        for key in data.keys():
-            data[key] = from_numpy(data[key])
-    if isinstance(data, list) or isinstance(data, tuple):
-        data = [from_numpy(x) for x in data]
-    if isinstance(data, np.ndarray):
-        """Pytorch now has bool type."""
-        data = torch.from_numpy(data)
-    return data
-
 def ref_copy(data):
     if isinstance(data, list):
         return [ref_copy(x) for x in data]
@@ -359,13 +331,6 @@ def ref_copy(data):
             d[key] = ref_copy(data[key])
         return d
     return data
-
-def collate_fn(batch):  #用list方式加载
-    return_batch = dict()
-    # Batching by use a list for non-fixed size
-    for key in batch[0].keys():
-        return_batch[key] = [x[key] for x in batch]
-    return return_batch
 
 
 if __name__ == "__main__":

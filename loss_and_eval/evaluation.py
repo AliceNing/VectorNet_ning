@@ -33,7 +33,8 @@ def get_FDE(pred, target):
     Returns: 
         FDE, [batch_size, 1]
     """
-    target = torch.stack(target, 0).to(config['device'])
+    # target = torch.stack(target, 0).to(config['device'])
+    target = target.to(config['device'])
     assert pred.shape == target.shape  #batch_size, 30, 2
     pred = pred[:, -1, :] # [batch_size, dim]
     target = target[:, -1, :]
@@ -46,12 +47,13 @@ def get_DE(pred, target, t_list):
     Args:
         a: [batch_size, len, dim]
         b:
-        t_list (list): len(t_list)=n
+        t_list (list): len(t_list)=n   t单位是毫秒
     Returns: 
         DE, [batch_size, n]
     """
-    target = torch.stack(target, 0).to(config['device'])
-    t_tensor = torch.tensor(t_list)
+    # target = torch.stack(target, 0).to(config['device'])
+    target = target.to(config['device'])
+    t_tensor = torch.tensor(t_list).to(config['device'])
     pred = torch.index_select(pred, 1, t_tensor) # [batch_size, n, dim]
     target = torch.index_select(target, 1, t_tensor)
     de = torch.sqrt(torch.sum((pred - target) ** 2, dim=2))

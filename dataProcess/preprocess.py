@@ -12,7 +12,7 @@ import torch
 from torch.utils.data import DataLoader
 from torch.multiprocessing import reductions
 from multiprocessing.reduction import ForkingPickler
-from data import ArgoDataset as Dataset, from_numpy, ref_copy, collate_fn
+from data import ArgoDataset as Dataset
 import pickle
 from config import *
 
@@ -24,19 +24,16 @@ def train(config):
         batch_size=config["batch_size"],
         num_workers=config["workers"],  #加载数据进程数
         shuffle=False,
-        collate_fn=collate_fn,
         pin_memory=True, #拷贝数据到cuda
         drop_last=False,
     )
 
-    stores = [None for x in range(2)]  #205942
+    stores = [None for x in range(200)]  #205942
     t = time.time()
     for i, data in enumerate(tqdm(train_loader)): #batch_num 0-6435
         # little datase
-        if i >= 1:
+        if i >= 100:
             break
-
-        data = dict(data)
         for j in range(len(data["idx"])):#batch 0-31
             store = dict()
             for key in [
@@ -62,13 +59,12 @@ def train(config):
 
 def val(config):
     # Data loader for validation set
-    dataset = Dataset(config["val_dir"], config, train=False)
+    dataset = Dataset(config["val_dir"], config, train=False, pad = True)
     val_loader = DataLoader(
         dataset,
         batch_size=config["batch_size"],
         num_workers=config["val_workers"],
         shuffle=False,
-        collate_fn=collate_fn,
         pin_memory=True,
     )
     stores = [None for x in range(200)]  #39472
@@ -76,10 +72,9 @@ def val(config):
     t = time.time()
     for i, data in enumerate(tqdm(val_loader)):  # batch_num 0-6435
         # little dataset
-        if i >= 200:
+        if i >= 100:
             break
 
-        data = dict(data)
         for j in range(len(data["idx"])):  # batch 0-31
             store = dict()
             for key in [
@@ -104,13 +99,12 @@ def val(config):
     f.close()
 
 def test(config):
-    dataset = Dataset(config["test_dir"], config, train=False)
+    dataset = Dataset(config["test_dir"], config, train=False, pad = True)
     test_loader = DataLoader(
         dataset,
         batch_size=config["batch_size"],
         num_workers=config["val_workers"],
         shuffle=False,
-        collate_fn=collate_fn,
         pin_memory=True,
     )
     stores = [None for x in range(100)] #78143 ,1024
@@ -118,10 +112,8 @@ def test(config):
     t = time.time()
     for i, data in enumerate(tqdm(test_loader)):  # batch_num 0-6435
         # little dataset
-        if i >= 100:
+        if i >= 50:
             break
-
-        data = dict(data)
         for j in range(len(data["idx"])):  # batch 0-31
             store = dict()
             for key in [
@@ -161,7 +153,7 @@ if __name__ == "__main__":
     config["preprocess"] = False  # we use raw data to generate preprocess data
     os.makedirs(os.path.dirname(config['preprocess_train']), exist_ok=True)
 
-    train(config)
-    val(config)
-    test(config)
+    # train(config)
+    # val(config)
+    # test(config)
 
