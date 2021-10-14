@@ -3,6 +3,7 @@ import torch
 from torch import nn
 from config import *
 from util import *
+from dataProcess.data import ArgoDataset
 from dataProcess.random_dataloader import *
 from network.mlp import MLP
 from network.global_graph import GlobalGraph
@@ -84,7 +85,7 @@ class VectorNet(nn.Module):
 
         p_list = []
         for polyline in polyline_list:
-            polyline = polyline.to(config['device'])
+            polyline = torch.squeeze(polyline, 1).to(config['device'])
             p = self.sub_graph(polyline)  # [batch_size, p_len]
             p_list.append(p)
         P = torch.stack(p_list, axis=1)  # [batch_size, p_number, p_len]
@@ -94,20 +95,17 @@ class VectorNet(nn.Module):
         return feature
 
 if __name__ == "__main__":
-    epochs = 2
-    batch_size = 2
-    decay_lr_factor = 0.9
-    decay_lr_every = 10
-    lr = 0.005
     # get model
     vector_net = VectorNetWithPredicting(v_len=9, time_stamp_number=30).to(config['device'])
-    data_loader = RandomDataloader(20, 0, 0, 9, 2).training_dataloader
-    for epoch in range(epochs):
-        for data in data_loader:
-            outputs = vector_net(data)
-            loss = loss_func(outputs, data['gt_preds'])
-            ade = torch.mean(get_ADE(outputs, data["gt_preds"]))
-            print("ad")
+    dataset = ArgoDataset("./data/train", config, 'train', pad=True)  # "dataset/train/data"
+    argo_dataloader = DataLoader(dataset, batch_size=config["batch_size"], drop_last=True, )
+    rand_dataloader = RandomDataloader(20, 0, 0, 9, 2).training_dataloader
+    for data in argo_dataloader:
+        data = dict(data)
+        outputs = vector_net(data)
+        loss = loss_func(outputs, data['gt_preds'])
+        ade = torch.mean(get_ADE(outputs, data["gt_preds"]))
+        print("ad")
 
 
 

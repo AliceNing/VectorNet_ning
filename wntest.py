@@ -19,14 +19,14 @@ import numpy as np
 # print(d)
 
 """list numpy tensor 转换"""
-a1 = torch.tensor([[1,2,3]])
-a2 = torch.tensor([[2,3,4]])
-a3 = torch.tensor([[5,4,6]])
-b = [a1,a2,a3]
-c = torch.stack(b, 0)
-d = torch.squeeze(c, 1)
-# c1 = torch.cat(b, 0)
-print("asd")
+# a1 = torch.tensor([[1,2,3]])
+# a2 = torch.tensor([[2,3,4]])
+# a3 = torch.tensor([[5,4,6]])
+# b = [a1,a2,a3]
+# c = torch.stack(b, 0)
+# d = torch.squeeze(c, 1)
+# # c1 = torch.cat(b, 0)
+# print("asd")
 
 """nn.Linear"""
 # m = nn.Linear(20, 30)  #  weights:20*30
@@ -45,3 +45,9 @@ print("asd")
 # print(x.size())
 # y = torch.squeeze(x,3)
 # print(y.size())
+
+epoch = 0
+epoch1 = 2
+
+print(epoch !=0 and epoch % 2 ==0)
+print(epoch1 !=0 and epoch1 % 2 ==0)

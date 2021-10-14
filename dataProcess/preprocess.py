@@ -12,46 +12,26 @@ import torch
 from torch.utils.data import DataLoader
 from torch.multiprocessing import reductions
 from multiprocessing.reduction import ForkingPickler
-from data import ArgoDataset as Dataset
+from data import ArgoDataset as Dataset, collate_fn, from_numpy
 import pickle
 from config import *
 
 def train(config):
     # Data loader for training set
-    dataset = Dataset(config["train_dir"], config, train=True, pad = True)
-    train_loader = DataLoader(
-        dataset,
-        batch_size=config["batch_size"],
-        num_workers=config["workers"],  #加载数据进程数
-        shuffle=False,
-        pin_memory=True, #拷贝数据到cuda
-        drop_last=False,
-    )
-
+    dataset = Dataset(config["train_dir"], config, 'train', pad = True)
+    train_loader = DataLoader(dataset, batch_size=config["preprocess_batch_size"], num_workers=config["workers"],  #加载数据进程数
+        shuffle=False, pin_memory=True,  drop_last=False,)
     stores = [None for x in range(200)]  #205942
-    t = time.time()
     for i, data in enumerate(tqdm(train_loader)): #batch_num 0-6435
         # little datase
-        if i >= 100:
+        if i >= 200:
             break
         for j in range(len(data["idx"])):#batch 0-31
             store = dict()
-            for key in [
-                'item_num',
-                'polyline_list',
-                'rot',
-                'gt_preds',
-                'has_preds',
-                'idx',
-            ]:
+            for key in ['item_num', 'rot', 'gt_preds', 'has_preds', 'idx', ]:
                 store[key] = data[key][j]
-
+            store['polyline_list'] = data['polyline_list']
             stores[store["idx"]] = store
-
-        if (i + 1) % 100 == 0:  #print time
-            print(i, time.time() - t)
-            t = time.time()
-
     # write preprocessed  data
     f = open(os.path.join(root_path, 'preprocess', config["preprocess_train"]), 'wb')
     pickle.dump(stores, f, protocol=pickle.HIGHEST_PROTOCOL)
@@ -59,51 +39,32 @@ def train(config):
 
 def val(config):
     # Data loader for validation set
-    dataset = Dataset(config["val_dir"], config, train=False, pad = True)
-    val_loader = DataLoader(
-        dataset,
-        batch_size=config["batch_size"],
-        num_workers=config["val_workers"],
-        shuffle=False,
-        pin_memory=True,
-    )
+    dataset = Dataset(config["val_dir"], config, 'val', pad = True)
+    val_loader = DataLoader(dataset, batch_size=config["preprocess_batch_size"], num_workers=config["val_workers"],
+        shuffle=False, pin_memory=True, )
     stores = [None for x in range(200)]  #39472
-
-    t = time.time()
     for i, data in enumerate(tqdm(val_loader)):  # batch_num 0-6435
         # little dataset
-        if i >= 100:
+        if i >= 200:
             break
-
         for j in range(len(data["idx"])):  # batch 0-31
             store = dict()
-            for key in [
-                'item_num',
-                'polyline_list',
-                'rot',
-                'gt_preds',
-                'has_preds',
-                'idx'
-            ]:
+            for key in [ 'item_num', 'rot', 'gt_preds', 'has_preds', 'idx']:
                 store[key] = data[key][j]
-
+            store['polyline_list'] = data['polyline_list']
             stores[store["idx"]] = store
-
-        if (i + 1) % 100 == 0:  # print time
-            print(i, time.time() - t)
-            t = time.time()
-
     # write preprocessed  data
     f = open(os.path.join(root_path, 'preprocess', config["preprocess_val"]), 'wb')
     pickle.dump(stores, f, protocol=pickle.HIGHEST_PROTOCOL)
     f.close()
 
 def test(config):
-    dataset = Dataset(config["test_dir"], config, train=False, pad = True)
+    dataset = Dataset(config["test_dir"], config, 'test', pad = True)
     test_loader = DataLoader(
         dataset,
-        batch_size=config["batch_size"],
+        batch_size=config["preprocess_batch_size"],
         num_workers=config["val_workers"],
+        # collate_fn=collate_fn,
         shuffle=False,
         pin_memory=True,
     )
@@ -112,19 +73,20 @@ def test(config):
     t = time.time()
     for i, data in enumerate(tqdm(test_loader)):  # batch_num 0-6435
         # little dataset
-        if i >= 50:
+        if i >= 100:
             break
         for j in range(len(data["idx"])):  # batch 0-31
             store = dict()
             for key in [
                 'item_num',
-                'polyline_list',
                 'rot',
                 'gt_preds',
                 'has_preds',
                 'idx'
             ]:
                 store[key] = data[key][j]
+            store['polyline_list'] = data['polyline_list']
+
 
             stores[store["idx"]] = store
 
@@ -153,7 +115,7 @@ if __name__ == "__main__":
     config["preprocess"] = False  # we use raw data to generate preprocess data
     os.makedirs(os.path.dirname(config['preprocess_train']), exist_ok=True)
 
-    # train(config)
-    # val(config)
-    # test(config)
+    train(config)
+    val(config)
+    test(config)
 

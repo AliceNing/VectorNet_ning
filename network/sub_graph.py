@@ -67,7 +67,7 @@ class SubGraphLayer(nn.Module):
             All processed vectors with shape [batch_size, n, len*2]
         """
         assert len(x.shape) == 3
-        x = self.g_enc(x) #可以直接batch
+        x = self.g_enc(x)
         batch_size, n, length = x.shape
         x2 = x.permute(0, 2, 1) # [batch_size, len, n]
         x2 = F.max_pool1d(x2, kernel_size=x2.shape[2])  # [batch_size, len, 1]

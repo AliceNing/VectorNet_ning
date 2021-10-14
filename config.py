@@ -4,6 +4,7 @@ root_path = os.path.dirname(os.path.abspath(__file__))
 
 config = dict()
 config["query_bbox"] = [-100, 100, -100, 100]
+config["preprocess_batch_size"] = 1
 config["batch_size"] = 2
 config["workers"] = 0
 config["val_workers"] = 0#32
@@ -12,7 +13,7 @@ config["val_workers"] = 0#32
 config["train_dir"] = "../data/train"   #os.path.join(root_path, "data/train")
 config["val_dir"] = "../data/val"       #os.path.join(root_path, "./data/val")
 config["test_dir"] = "../data/test"     #os.path.join(root_path, "./data/test")
-config["model_save_dir"] = "../data/test"     #os.path.join(root_path, "./data/test")
+config["save_dir"] = "../data/save_model"     #os.path.join(root_path, "./data/test")
 
 #   Preprocessed Dataset
 config["preprocess"] = True # whether use preprocess or not

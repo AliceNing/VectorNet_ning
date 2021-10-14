@@ -14,16 +14,13 @@ from skimage.transform import rotate
 
 
 class ArgoDataset(Dataset):
-    def __init__(self, dir, config, train=True, pad = False):
+    def __init__(self, dir, config, set, pad = False):
         self.config = config
-        self.train = train
         self.pad = pad
 
         if 'preprocess' in config and config['preprocess']:#加载预处理好的数据
-            if train:
-                self.load_file = np.load(self.config['preprocess_train'], allow_pickle=True)
-            else:
-                self.load_file = np.load(self.config['preprocess_val'], allow_pickle=True)
+                self.load_file = np.load(self.config['preprocess_'+set], allow_pickle=True)
+                # self.load_file = np.load(self.config['preprocess_val'], allow_pickle=True)
         else:#第一次数据预处理
             self.avl = ArgoverseForecastingLoader(dir)
             self.avl.seq_list = sorted(self.avl.seq_list)
@@ -314,6 +311,7 @@ class ArgoDataset(Dataset):
         '''
         new_data = dict()
         new_data['item_num'] = data['item_num']
+        # new_data['polyline_list'] = torch.stack(data['poly_feats'], 0)
         new_data['polyline_list'] = data['poly_feats']
         new_data['rot'] = data['rot']
         new_data['gt_preds'] = data['gt_preds']
@@ -321,6 +319,7 @@ class ArgoDataset(Dataset):
         new_data['idx'] = data['idx']
 
         return new_data
+
 
 def ref_copy(data):
     if isinstance(data, list):
@@ -334,14 +333,14 @@ def ref_copy(data):
 
 
 if __name__ == "__main__":
-    dataset = ArgoDataset("./data/train", config, train=True, pad=True)  # "dataset/train/data"
-    train_loader = DataLoader(dataset, batch_size=config["batch_size"], drop_last=True,)
-    for epoch in range(2):
-        for i, data in enumerate(train_loader):
-            print("epoch", epoch, "的第", i, "个inputs",
-                  "item_num:", data["item_num"][0].data.size(),
-                  "polyline_list:", len(data["polyline_list"][0]),
-                  "future:", data["gt_preds"][0].data.size())
-            # if i == 99:
-            #     print("1")
+    dataset = ArgoDataset("./data/val", config, 'val', pad=True)  # "dataset/train/data"
+    train_loader = DataLoader(dataset, batch_size=config["batch_size"],  drop_last=True,)
+    for i, data in enumerate(train_loader):
+        data = dict(data)
+        data["polyline_list"] = torch.squeeze(torch.stack(data["polyline_list"], 0), 2)
+        print("epoch", epoch, "的第", i, "个inputs",
+              "item_num:", data["item_num"][0].data.size(),
+              "polyline_list:", len(data["polyline_list"][0]),
+              "future:", data["gt_preds"][0].data.size())
+
 
