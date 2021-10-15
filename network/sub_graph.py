@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-from network.mlp import MLP
+from mlp import MLP
 
 class SubGraph(nn.Module):
     r"""

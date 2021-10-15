@@ -1,16 +1,24 @@
 import copy
 import torch
+import os,sys
 from torch import nn
+import torch.nn.functional as F
+from mlp import MLP
+from global_graph import GlobalGraph
+from sub_graph import SubGraph
+from pathlib import Path
+
+path = Path(__file__).parents[0]
+root_path = os.path.dirname(path)
+sys.path.append(root_path)
+from loss_and_eval.evaluation import *
+from loss_and_eval.loss import *
 from config import *
 from util import *
 from dataProcess.data import ArgoDataset
 from dataProcess.random_dataloader import *
-from network.mlp import MLP
-from network.global_graph import GlobalGraph
-from network.sub_graph import SubGraph
-from loss_and_eval.evaluation import *
-from loss_and_eval.loss import *
-import torch.nn.functional as F
+
+
 
 class VectorNetWithPredicting(nn.Module):
     r"""

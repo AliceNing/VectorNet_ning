@@ -2,6 +2,10 @@ import copy
 import torch
 from torch import nn
 import torch.nn.functional as F
+from pathlib import Path
+path = Path(__file__).parents[0]
+root_path = os.path.dirname(path)
+sys.path.append(root_path)
 from config import *
 
 class GlobalGraph(nn.Module):

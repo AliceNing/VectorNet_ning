@@ -1,6 +1,7 @@
 ## vectorNet
 
-论文地址：https://arxiv.org/pdf/2005.04259.pdf
+论文地址：https://arxiv.org/pdf/2005.04259.pdf   
+参考：https://github.com/DQSSSSS/VectorNet
 
 把车道线和运动轨迹等抽象成不同的节点簇，构成一个subgraph，进行局部的特征融合
 
@@ -20,7 +21,7 @@
 
 ![](images/vectornet_fig3.png)
 
-​	stetp1:  genc函数：MLP模型（FC+norm+Relu）。   多层的！！！整个sub-graph也是多层的！！！（3层）
+​	stetp1:  genc函数：MLP模型（FC+norm+Relu），是多层的，并且整个sub-graph也是多层的（3层）。
 
 ​	step2:  agg函数：邻居节点特征整合，最大池化层。  
 
@@ -82,11 +83,33 @@
 ​			'rot'：保存旋转矩阵  
 ​			'gt_preds'：保存agent的future 坐标   
 ​			'has_preds'：未来30个时刻gt_preds是否有值  
-​			'idx'：data index  
-### 2.模型框架
-代码参考 https://github.com/DQSSSSS/VectorNet
-BUG：sub-graph 为三层，每一层里的genc函数也是堆叠了三层的MLP
-###To do list
-- [ ] 模型改进(加tensorboard)
-- [ ] 模型改进(并行)
-- [ ] 模型改进(结果可视化)
+​			'idx'：data index
+
+### 2.问题
+数据加pad后，每个data里的polyline数量为330（obj:30, lane:150*2），每条polyline中包含的vector数量都为19。vector特征长度为9   
+
+1. 报错‘RuntimeError: CUDA error: device-side assert triggered’，报错原因不清晰   
+
+   解决方法：一般为索引越界等问题，仔细检查传入的lable范围；若没有报错位置，切到CPU上跑模型，定位bug。  
+
+2. 多GPU训练模型时，报错“RuntimeError:Expected tensor for argument #1 'input' to have the same devise as tensor for augument”   
+
+   原因：数据位置不一样，也可能和函数调用有关系，定位bug,检查修改网络模型或者单GPU跑模型  
+   
+3. pycharm里可以设置根目录，代码运行正常，但是传到服务器之后提示找不到模块，主要是config文件的导入报错  
+   
+   原因：Linux里系统文件路径没有添加进相关的路径
+   
+   解决方法：可以更改环境变量，缺点是换个服务器就要改一次，更推荐下面的解决方法
+   ```python
+   from pathlib import Path  #利用pathlib包
+
+   path = Path(__file__).parents[0]   #得到当前目录
+   root_path = os.path.dirname(path)   #得到前两级目录
+   sys.path.append(path)   #将其加入到系统目录里
+   #sys.path.insert(0,path)   # 也可以使用insert，在加入系统目录的同时调高优先级
+   from Vectornet_ning.config import *   #加外层包名
+   
+   #这种修改方式只在当前文件的运行期有效，运行结束后系统目录恢复到默认值
+   ```
+4. 

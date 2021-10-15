@@ -2,15 +2,25 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 from scipy import sparse
-import os
+import os,sys
 import copy
-from config import *
 import pandas as pd
 from typing import List, Dict, Any
 from argoverse.data_loading.argoverse_forecasting_loader import ArgoverseForecastingLoader
 from argoverse.map_representation.map_api import ArgoverseMap
 from torch.utils.data import DataLoader
 from skimage.transform import rotate
+from pathlib import Path
+path = Path(__file__).parents[0]
+root_path = os.path.dirname(path)
+sys.path.append(root_path)
+from config import *
+
+
+path = os.path.abspath(__file__)
+root_path = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(root_path)
+# print(sys.path)
 
 
 class ArgoDataset(Dataset):
@@ -20,7 +30,6 @@ class ArgoDataset(Dataset):
 
         if 'preprocess' in config and config['preprocess']:#加载预处理好的数据
                 self.load_file = np.load(self.config['preprocess_'+set], allow_pickle=True)
-                # self.load_file = np.load(self.config['preprocess_val'], allow_pickle=True)
         else:#第一次数据预处理
             self.avl = ArgoverseForecastingLoader(dir)
             self.avl.seq_list = sorted(self.avl.seq_list)

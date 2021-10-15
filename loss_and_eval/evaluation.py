@@ -1,4 +1,9 @@
 import torch
+import os,sys
+from pathlib import Path
+path = Path(__file__).parents[0]
+root_path = os.path.dirname(path)
+sys.path.append(path)
 from config import *
 
 r"""

@@ -10,16 +10,16 @@ config["workers"] = 0
 config["val_workers"] = 0#32
 
 #  data save path
-config["train_dir"] = "../data/train"   #os.path.join(root_path, "data/train")
-config["val_dir"] = "../data/val"       #os.path.join(root_path, "./data/val")
-config["test_dir"] = "../data/test"     #os.path.join(root_path, "./data/test")
-config["save_dir"] = "../data/save_model"     #os.path.join(root_path, "./data/test")
+config["train_dir"] = os.path.join(root_path, "data", "train")   #os.path.join(root_path, "data/train")
+config["val_dir"] = os.path.join(root_path, "data", "val")       #os.path.join(root_path, "./data/val")
+config["test_dir"] = os.path.join(root_path, "data", "test")     #os.path.join(root_path, "./data/test")
+config["save_dir"] = os.path.join(root_path, "data", "save_model")    #os.path.join(root_path, "./data/test")
 
 #   Preprocessed Dataset
 config["preprocess"] = True # whether use preprocess or not
-config["preprocess_train"] = os.path.join(root_path, "dataset", "preprocess", "train.p")
-config["preprocess_val"] = os.path.join(root_path, "dataset", "preprocess", "val.p")
-config['preprocess_test'] = os.path.join(root_path, "dataset", 'preprocess', 'test.p')
+config["preprocess_train"] = os.path.join(root_path, "data", "preprocess", "train.p")
+config["preprocess_val"] = os.path.join(root_path, "data", "preprocess", "val.p")
+config['preprocess_test'] = os.path.join(root_path, "data", 'preprocess', 'test.p')
 
 #   cuda
 if torch.cuda.is_available():
@@ -27,3 +27,5 @@ if torch.cuda.is_available():
 else:
     device = torch.device("cpu")
 config['device'] = device
+
+# print("adsf")

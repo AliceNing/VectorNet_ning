@@ -1,4 +1,5 @@
 import torch
+from config import *
 
 def gpu(data):
     """
@@ -10,5 +11,6 @@ def gpu(data):
     elif isinstance(data, dict):
         data = {key:gpu(_data) for key,_data in data.items()}
     elif isinstance(data, torch.Tensor):
-        data = data.contiguous().cuda(non_blocking=True)
+        # data = data.contiguous().cuda(non_blocking=True)
+        data = data.to(config['device'])
     return data

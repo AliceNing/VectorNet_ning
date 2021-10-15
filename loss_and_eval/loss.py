@@ -1,4 +1,8 @@
 import torch
+from pathlib import Path
+path = Path(__file__).parents[0]
+root_path = os.path.dirname(path)
+sys.path.append(root_path)
 from config import *
 
 def loss_func(pred, target, alpha=0.1):
