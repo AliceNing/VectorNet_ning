@@ -18,7 +18,8 @@ from pathlib import Path
 
 path = Path(__file__).parents[0]
 root_path = os.path.dirname(path)
-sys.path.append(root_path)
+# sys.path.append(root_path)
+sys.path.insert(0, root_path)
 from config import *
 
 def train(config):
@@ -59,8 +60,9 @@ def val(config):
             store['polyline_list'] = data['polyline_list']
             stores[store["idx"]] = store
     # write preprocessed  data
-    f = open(onfig["preprocess_val"], 'wb')
+    f = open(config["preprocess_val"], 'wb')
     pickle.dump(stores, f, protocol=pickle.HIGHEST_PROTOCOL)
+    print("preprocess val write done!!")
     f.close()
 
 def test(config):
@@ -103,6 +105,7 @@ def test(config):
     f = open(config["preprocess_test"], 'wb')
     pickle.dump(stores, f, protocol=pickle.HIGHEST_PROTOCOL)
     f.close()
+    print("preprocess val write done!!")
 
 def to_numpy(data):
     """Recursively transform torch.Tensor to numpy.ndarray.
@@ -120,8 +123,7 @@ if __name__ == "__main__":
     config["preprocess"] = False  # we use raw data to generate preprocess data
     os.makedirs(os.path.dirname(config['preprocess_train']), exist_ok=True)
 
-    train(config)
+    # train(config)
     val(config)
-    # print("import success")
     test(config)
 

@@ -17,9 +17,9 @@ sys.path.append(root_path)
 from config import *
 
 
-path = os.path.abspath(__file__)
-root_path = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(root_path)
+# path = os.path.abspath(__file__)
+# root_path = os.path.dirname(os.path.abspath(__file__))
+# sys.path.append(root_path)
 # print(sys.path)
 
 

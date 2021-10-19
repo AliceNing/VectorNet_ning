@@ -29,7 +29,8 @@ os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
 
 root_path = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, root_path)
+# sys.path.insert(0, root_path)
+sys.path.append(root_path)
 
 def main():  # train on single gpu
     vector_net = VectorNetWithPredicting(v_len=9, time_stamp_number=30)

@@ -28,4 +28,4 @@ else:
     device = torch.device("cpu")
 config['device'] = device
 
-# print("adsf")
+# print(torch.device)

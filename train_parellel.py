@@ -62,7 +62,7 @@ def train_model(epochs, train_loader, eval_loader, vector_net, optimizer, learni
     iter_num=0
     for epoch in range(epochs):
         for i, data in enumerate(train_loader):
-            data = dict(data)
+            data = dict(data).to(config['device'])
             optimizer.zero_grad()
             outputs = vector_net(data)
             loss = loss_func(outputs, data['gt_preds'])

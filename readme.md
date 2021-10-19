@@ -94,7 +94,9 @@
 
 2. 多GPU训练模型时，报错“RuntimeError:Expected tensor for argument #1 'input' to have the same devise as tensor for augument”   
 
-   原因：数据位置不一样，也可能和函数调用有关系，定位bug,检查修改网络模型或者单GPU跑模型  
+   原因：数据位置不一样，也可能和函数调用有关系，定位bug,检查修改网络模型或者单GPU跑模型   
+         另外发现使用nn.DataParallel时，在`model.to(device)`之后，存在部分模型并没有放在指定设备上的问题，debug查看其所在的设备，
+   然后`.to(参数.device)`。*待完成：使用nn.DistributeDataParallel代替DP*
    
 3. pycharm里可以设置根目录，代码运行正常，但是传到服务器之后提示找不到模块，主要是config文件的导入报错  
    
@@ -116,4 +118,5 @@
 
    设置pin_memory=False即可。pin_memory是锁页内存，创建DataLoader时，设置pin_memory=True，则意味着生成的Tensor数据最开始是属于内存中的锁页内存，这样将内存的Tensor转义到GPU的显存就会更快一些。
    主机中的内存，有两种存在方式，一是锁页，二是不锁页，锁页内存存放的内容在任何情况下都不会与主机的虚拟内存进行交换（注：虚拟内存就是硬盘），而不锁页内存在主机内存不足时，数据会存放在虚拟内存中。显卡中的显存全部是锁页内存,当计算机的内存充足的时候，可以设置pin_memory=True。当系统卡住，或者交换内存使用过多的时候，设置pin_memory=False。
-
+5. argoverse数据集预处理后，文件比较大，在训练时读取数据比较慢。
+   *待解决：dataset初始化读数据修改，dataloader多文件加载。*
